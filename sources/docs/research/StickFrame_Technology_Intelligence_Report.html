@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @page { size: A4; margin: 2cm; @bottom-center { content: "Page " counter(page); font-size: 10px; color: #666; } }
+  body { font-family: 'Helvetica', 'Arial', sans-serif; color: #222; line-height: 1.5; font-size: 11pt; }
+  h1 { color: #1a1a2e; border-bottom: 3px solid #e94560; padding-bottom: 8px; margin-top: 30px; font-size: 22pt; }
+  h2 { color: #1a1a2e; border-bottom: 2px solid #0f3460; padding-bottom: 5px; margin-top: 25px; font-size: 16pt; }
+  h3 { color: #0f3460; margin-top: 18px; font-size: 13pt; }
+  h4 { color: #533483; margin-top: 12px; font-size: 11pt; }
+  .header { text-align: center; margin-bottom: 30px; padding: 25px; background: linear-gradient(135deg, #1a1a2e, #16213e); color: white; border-radius: 8px; }
+  .header h1 { color: white; border: none; font-size: 26pt; margin: 0; }
+  .header p { color: #a8b2d1; margin: 5px 0 0 0; }
+  .section { margin: 20px 0; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 10pt; }
+  th { background: #1a1a2e; color: white; padding: 8px 10px; text-align: left; }
+  td { padding: 7px 10px; border-bottom: 1px solid #ddd; }
+  tr:nth-child(even) td { background: #f8f9fa; }
+  a { color: #0f3460; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 9pt; margin: 2px; }
+  .tag-green { background: #d4edda; color: #155724; }
+  .tag-blue { background: #d1ecf1; color: #0c5460; }
+  .tag-orange { background: #ffeeba; color: #856404; }
+  .tag-red { background: #f8d7da; color: #721c24; }
+  .box { border: 1px solid #ddd; border-left: 4px solid #0f3460; padding: 12px; margin: 12px 0; background: #f8f9fa; border-radius: 4px; }
+  .box-warn { border-left-color: #e94560; background: #fff5f5; }
+  .box-good { border-left-color: #28a745; background: #f0fff4; }
+  hr { border: none; border-top: 1px solid #ddd; margin: 20px 0; }
+  .code { font-family: 'Courier New', monospace; background: #eee; padding: 1px 4px; border-radius: 3px; font-size: 10pt; }
+  pre { background: #1e1e2e; color: #cdd6f4; padding: 12px; border-radius: 6px; font-size: 9pt; overflow-x: auto; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>StickFrame — Technology Intelligence Report</h1>
+  <p>Research & Intelligence | Hermes Agent | July 2026</p>
+  <p style="font-size:10pt; opacity:0.7;">Prepared for Claude Code (Engineering Lead) &amp; Codex CLI (Core Engine Lead)</p>
+</div>
+
+<div class="section">
+  <h1>1. Executive Summary</h1>
+  <p>This report maps the open-source ecosystem for building <strong>StickFrame</strong> — a text-to-stickman-animation engine. The goal is to identify libraries, repos, and skills that reduce the amount of code Claude Code and Codex need to write from scratch.</p>
+  
+  <div class="box box-good">
+    <strong>Key Finding:</strong> You can save ~60% of boilerplate code by leveraging existing libraries. The core unique value (stickman rig + animation data model) must still be built from scratch.
+  </div>
+
+  <h2>Top 5 Quick Wins</h2>
+  <table>
+    <tr><th>#</th><th>Library</th><th>What It Replaces</th><th>Effort Saved</th></tr>
+    <tr><td>1</td><td><strong>pytweening</strong></td><td>Easing / tweening functions (30+ curves)</td><td>~1 day of math</td></tr>
+    <tr><td>2</td><td><strong>movis</strong></td><td>Video composition, layers, effects, ffmpeg export</td><td>~1 week of pipeline</td></tr>
+    <tr><td>3</td><td><strong>Stickman-Studio</strong></td><td>Reference architecture for stickman pipeline</td><td>Reference only</td></tr>
+    <tr><td>4</td><td><strong>The-StickMan</strong></td><td>Joint rotation math, stickman drawing code</td><td>~2 days of math</td></tr>
+    <tr><td>5</td><td><strong>claudedesignskills</strong></td><td>Claude Code skills for 3D/animation/graphics</td><td>Skill scaffolding</td></tr>
+  </table>
+</div>
+
+<hr>
+
+<div class="section">
+  <h1>2. Directly Reusable Libraries</h1>
+
+  <h2>2.1 Rendering Libraries</h2>
+  
+  <table>
+    <tr><th>Library</th><th>Stars</th><th>License</th><th>Verdict for StickFrame</th></tr>
+    <tr>
+      <td><strong>Pillow (PIL)</strong><br><a href="https://github.com/python-pillow/Pillow">github.com/python-pillow/Pillow</a></td>
+      <td>12k+</td>
+      <td>Historical</td>
+      <td><span class="tag tag-green">USE</span> Already planned. Does line/circle drawing, compositing, GIF export.</td>
+    </tr>
+    <tr>
+      <td><strong>pycairo</strong><br><a href="https://github.com/pygobject/pycairo">github.com/pygobject/pycairo</a></td>
+      <td>1k+</td>
+      <td>LGPL</td>
+      <td><span class="tag tag-orange">OPTION</span> Better line quality (antialiased), vector-based. Could replace Pillow for drawing.</td>
+    </tr>
+    <tr>
+      <td><strong>drawsvg</strong><br><a href="https://github.com/cduck/drawsvg">github.com/cduck/drawsvg</a></td>
+      <td>600+</td>
+      <td>MIT</td>
+      <td><span class="tag tag-orange">OPTION</span> SVG generation → convert to PNG via cairo. Resolution independent.</td>
+    </tr>
+    <tr>
+      <td><strong>pygame</strong><br><a href="https://github.com/pygame/pygame">github.com/pygame/pygame</a></td>
+      <td>7k+</td>
+      <td>LGPL</td>
+      <td><span class="tag tag-red">OVERKILL</span> Full game engine. Good for headless rendering but heavier than needed.</td>
+    </tr>
+  </table>
+
+  <h2>2.2 Animation &amp; Easing Libraries</h2>
+  
+  <table>
+    <tr><th>Library</th><th>Description</th><th>Verdict</th></tr>
+    <tr>
+      <td><strong>pytweening</strong><br><a href="https://github.com/asweigart/pytweening">github.com/asweigart/pytweening</a></td>
+      <td>30+ easing functions: linear, easeInQuad, easeOutCubic, easeInOutSine, easeInBounce, easeOutElastic, etc. Input 0.0-1.0 → output 0.0-1.0. Pure Python, zero deps.</td>
+      <td><span class="tag tag-green">DEFINITELY USE</span><br><span class="code">pip install pytweening</span></td>
+    </tr>
+    <tr>
+      <td><strong>movis</strong><br><a href="https://github.com/rezoo/movis">github.com/rezoo/movis</a></td>
+      <td>Python video editing engine: compositions, layers, keyframes, easing, blending modes, drop shadow, blur, chromakey, nested comps, ffmpeg export. MIT license.</td>
+      <td><span class="tag tag-blue">STRONG CANDIDATE</span><br>Could serve as entire rendering pipeline. Last commit 2 years ago — evaluate first.</td>
+    </tr>
+  </table>
+
+  <div class="box">
+    <strong>🔑 Key Insight on movis:</strong> Movis has a <code>keypoint and easing-based animation engine</code> built-in. We could use movis <em>compositions</em> as our scene graph, with <code>add_layer()</code> for characters and objects, and let movis handle frame-by-frame rendering + ffmpeg export. We'd only need to write the custom stickman drawing layer (a function that returns RGBA numpy arrays per frame).
+    <br><br>
+    <strong>Install:</strong> <span class="code">pip install movis</span>
+  </div>
+
+  <h2>2.3 Video Export Libraries</h2>
+  
+  <table>
+    <tr><th>Library</th><th>Description</th><th>Verdict</th></tr>
+    <tr>
+      <td><strong>ffmpeg-python</strong><br><a href="https://github.com/kkroening/ffmpeg-python">github.com/kkroening/ffmpeg-python</a></td>
+      <td>Python bindings for ffmpeg with filter graph support.</td>
+      <td><span class="tag tag-green">USE IF NOT USING MOVIS</span></td>
+    </tr>
+    <tr>
+      <td><strong>moviepy</strong><br><a href="https://github.com/Zulko/moviepy">github.com/Zulko/moviepy</a></td>
+      <td>Classic Python video editing. Mature but heavier.</td>
+      <td><span class="tag tag-orange">FALLBACK</span></td>
+    </tr>
+    <tr>
+      <td><strong>FFmpeg (native)</strong><br><a href="https://ffmpeg.org/">ffmpeg.org</a></td>
+      <td>Use via <span class="code">subprocess</span> — no extra Python dep.</td>
+      <td><span class="tag tag-green">SIMPLEST</span> Save PNG frames → ffmpeg stitch. Works every time.</td>
+    </tr>
+  </table>
+
+  <h2>2.4 Pre-Built Stickman Projects (Reference &amp; Reuse)</h2>
+
+  <table>
+    <tr><th>Repo</th><th>Stars</th><th>What It Does</th><th>Reuse Potential</th></tr>
+    <tr>
+      <td><strong>Stickman-Studio</strong><br><a href="https://github.com/saiedpod-bot/Stickman-Studio">github.com/saiedpod-bot/Stickman-Studio</a></td>
+      <td>~50</td>
+      <td>AI-powered stickman animation video pipeline. Uses Gemini, Imagen, edge-tts, ffmpeg. Streamlit dashboard. Script → stickman video → YouTube.</td>
+      <td><span class="tag tag-blue">REFERENCE ARCHITECTURE</span><br>Not directly reusable (uses AI), but excellent reference for pipeline design. Study their slideshow mode + Ken Burns effect + ffmpeg stitching.</td>
+    </tr>
+    <tr>
+      <td><strong>The-StickMan</strong><br><a href="https://github.com/francisA88/The-StickMan">github.com/francisA88/The-StickMan</a></td>
+      <td>2</td>
+      <td>Stickman animation framework made with Kivy. Has RotateableLine, joint rotation, StickMan widget class.</td>
+      <td><span class="tag tag-orange">MATH REFERENCE</span><br>Small but has working joint rotation math. The <span class="code">stickman.py</span> file has angle-based limb transformations we can reference. MIT license.</td>
+    </tr>
+    <tr>
+      <td><strong>StickMotion</strong><br><a href="https://github.com/InvertedForest/StickMotion">github.com/InvertedForest/StickMotion</a></td>
+      <td>~100</td>
+      <td>Diffusion-based stickman motion generation from text + stickman conditions.</td>
+      <td><span class="tag tag-red">OVERKILL FOR MVP</span><br>Uses diffusion models. Good for Year 3 AI layer, not for deterministic engine.</td>
+    </tr>
+    <tr>
+      <td><strong>DanceStickFigure</strong><br><a href="https://github.com/aaryan-athena/DanceStickFigure">github.com/aaryan-athena/DanceStickFigure</a></td>
+      <td>~30</td>
+      <td>MediaPipe pose estimation → stickman animation. Streamlit app.</td>
+      <td><span class="tag tag-blue">REFERENCE</span><br>Good for understanding how to map joint coordinates to stickman drawings. Uses Pillow for rendering.</td>
+    </tr>
+    <tr>
+      <td><strong>bone-animator</strong><br><a href="https://github.com/sanskarchand/bone-animator">github.com/sanskarchand/bone-animator</a></td>
+      <td>~10</td>
+      <td>Pivot Animator clone — manual stickman animation tool.</td>
+      <td><span class="tag tag-orange">CONCEPT REFERENCE</span><br>Shows how Pivot-style stickman animation works conceptually.</td>
+    </tr>
+    <tr>
+      <td><strong>StickyPy</strong><br><a href="https://stickypy.sourceforge.net/">stickypy.sourceforge.net</a></td>
+      <td>N/A</td>
+      <td>Professional stick figure animation program written in Python + Pygame. Pivot-like.</td>
+      <td><span class="tag tag-orange">CONCEPT REFERENCE</span><br>Old but shows complete stickman animation software built in Python.</td>
+    </tr>
+    <tr>
+      <td><strong>Axis</strong><br><a href="https://github.com/davepagurek/Axis">github.com/davepagurek/Axis</a></td>
+      <td>~100</td>
+      <td>Stick figure animator for keyframed animation.</td>
+      <td><span class="tag tag-blue">REFERENCE</span><br>Keyframed animation approach for stick figures. Study their interpolation model.</td>
+    </tr>
+  </table>
+</div>
+
+<hr>
+
+<div class="section">
+  <h1>3. Recommended Architecture (Based on Research)</h1>
+
+  <div class="box box-good">
+    <strong>Recommendation:</strong> Use <strong>Pillow + pytweening</strong> for the MVP (simplest path), evaluate <strong>movis</strong> for the production pipeline. Do NOT use game engines (pygame/arcade) — they're designed for interactivity, not headless frame rendering.
+  </div>
+
+  <h2>Option A: Pillow + pytweening (MVP — Recommended)</h2>
+  <pre>
+  sources/engine/
+  ├── scene.py              # Scene data models (Pydantic)
+  ├── animation.py          # AnimationPlayer + keyframe interpolation
+  ├── animation_clips.py    # Walk/run/jump/attack/fall keyframe data
+  ├── rig.py                # Stickman skeleton joint resolver
+  ├── renderer.py           # Pillow-based frame renderer
+  ├── ffmpeg_export.py      # PNG sequence → ffmpeg → MP4
+  ├── __main__.py           # CLI entry point
+  └── demo_scene.json       # Test scene</pre>
+  
+  <p><strong>Dependencies:</strong> <span class="code">pip install pillow pytweening</span> + ffmpeg on PATH</p>
+
+  <h2>Option B: movis Pipeline (Production — Strong Candidate)</h2>
+  <pre>
+  sources/engine/
+  ├── scene.py              # Scene data models
+  ├── animation.py          # AnimationPlayer
+  ├── animation_clips.py    # Keyframe data
+  ├── rig.py                # Skeleton joint resolver
+  ├── layers.py             # Movis-compatible custom layers (stickman drawing)
+  └── __main__.py           # Builds movis Composition + adds layers → write_video()</pre>
+  
+  <p><strong>Dependencies:</strong> <span class="code">pip install movis pytweening</span></p>
+
+  <div class="box box-warn">
+    <strong>⚠️ movis Risk:</strong> Last commit was 2 years ago (2024). The repo may be unmaintained. Test compatibility with Python 3.13 before committing to this path.
+  </div>
+
+  <h2>3.1 Stickman Skeleton Model (Based on The-StickMan + Axis Research)</h2>
+  
+  <p>Based on analysis of existing stickman frameworks, our joint hierarchy should be:</p>
+  <pre>
+  HEAD (center)                    # Circle
+    │
+  BODY_TOP (neck/shoulders)        # Origin for arms
+    │
+  BODY_BOTTOM (hips)               # Origin for legs
+  
+  LEFT_SHOULDER ── LEFT_ELBOW ── LEFT_HAND    # Upper arm → forearm → hand
+  RIGHT_SHOULDER ── RIGHT_ELBOW ── RIGHT_HAND
+  LEFT_HIP ── LEFT_KNEE ── LEFT_FOOT          # Thigh → shin → foot
+  RIGHT_HIP ── RIGHT_KNEE ── RIGHT_FOOT</pre>
+  
+  <p>Each limb has a base angle + animation angle offset, as demonstrated in The-StickMan's <span class="code">RotateableLine</span> class.</p>
+
+  <h2>3.2 Keyframe Data Format (Based on Axis + Research)</h2>
+  <p>Similar to Axis's approach but simpler — per-frame joint angle arrays with linear interpolation:</p>
+  <pre>
+  AnimationClip "walk":
+    Frame 0: { left_arm: 30, right_arm: -30, left_leg: -25, right_leg: 25, body_tilt: 3 }
+    Frame 2: { left_arm: 0,  right_arm: 0,   left_leg: 0,   right_leg: 0,  body_tilt: 0 }
+    Frame 4: { left_arm: -30, right_arm: 30,  left_leg: 25,  right_leg: -25, body_tilt: -3 }
+    Frame 6: { left_arm: 0,  right_arm: 0,   left_leg: 0,   right_leg: 0,  body_tilt: 0 }
+    Interpolation: linear (or use pytweening.easeInOutSine for smoother motion)</pre>
+</div>
+
+<hr>
+
+<div class="section">
+  <h1>4. Claude Code Skills for Animation/Graphics</h1>
+
+  <table>
+    <tr><th>Skill</th><th>Source</th><th>What It Does</th><th>Install</th></tr>
+    <tr>
+      <td><strong>claudedesignskills</strong></td>
+      <td><a href="https://github.com/freshtechbro/claudedesignskills">github.com/freshtechbro/claudedesignskills</a></td>
+      <td>3D graphics, animation, WebGL, Three.js, GSAP. 50+ skills for web development with animation focus. Plugin-based marketplace.</td>
+      <td><span class="code">/plugin marketplace add freshtechbro/claudedesignskills</span></td>
+    </tr>
+    <tr>
+      <td><strong>animation-principles</strong></td>
+      <td><a href="https://crossaitools.com/skills/dylantarre/animation-principles/game-development">crossaitools.com</a></td>
+      <td>Disney's 12 animation principles, timing windows for attacks/dodges, frame data, code examples.</td>
+      <td><span class="code">Claude Code skill marketplace</span></td>
+    </tr>
+    <tr>
+      <td><strong>ai-video-generation</strong></td>
+      <td><a href="https://claudeskills.info/skills/inference-sh/skills/ai-video-generation/">claudeskills.info</a></td>
+      <td>Generate AI videos with 40+ models via inference.sh CLI. Useful for Year 3 AI layer.</td>
+      <td><span class="code">Claude Code skill marketplace</span></td>
+    </tr>
+    <tr>
+      <td><strong>remotion-render</strong></td>
+      <td><a href="https://www.skills.sh/magentosh/skills/remotion-render">skills.sh</a></td>
+      <td>Render videos from React/Remotion component code. Useful if we go React-based rendering.</td>
+      <td><span class="code">Claude Code skill marketplace</span></td>
+    </tr>
+    <tr>
+      <td><strong>claude-code-game-development</strong></td>
+      <td><a href="https://github.com/HermeticOrmus/claude-code-game-development">github.com/HermeticOrmus/claude-code-game-development</a></td>
+      <td>Game dev patterns: game loops, state management, input, collision, physics, animation, camera. All relevant patterns for our engine.</td>
+      <td><span class="code">Clone repo, reference patterns</span></td>
+    </tr>
+    <tr>
+      <td><strong>"Animate" Skill</strong></td>
+      <td><a href="https://claudemarketplaces.com/skills/onewave-ai/claude-skills/animate">claudemarketplaces.com</a></td>
+      <td>Create animated videos and motion graphics from natural language descriptions.</td>
+      <td><span class="code">Claude Code skill marketplace</span></td>
+    </tr>
+  </table>
+
+  <div class="box">
+    <strong>For Claude Code (Engineering Lead):</strong> Install <strong>claudedesignskills</strong> and <strong>claude-code-game-development</strong> before starting. The game development patterns (animation, camera, state management) map directly to our engine needs.
+  </div>
+</div>
+
+<hr>
+
+<div class="section">
+  <h1>5. Codex CLI Skills for Animation/Graphics</h1>
+
+  <table>
+    <tr><th>Skill</th><th>Source</th><th>What It Does</th><th>Install</th></tr>
+    <tr>
+      <td><strong>awesome-codex-skills</strong></td>
+      <td><a href="https://github.com/composio-community/awesome-codex-skills">github.com/composio-community/awesome-codex-skills</a></td>
+      <td>14.4k+ stars. Curated list of 150+ practical Codex skills, subagents, MCP servers. Includes animation, video, and graphics skills.</td>
+      <td><span class="code">Clone repo, browse skills</span></td>
+    </tr>
+    <tr>
+      <td><strong>motion-skills</strong></td>
+      <td><a href="https://skillsllm.com/skill/motion-skills">skillsllm.com</a></td>
+      <td>50 open-source skills that teach Codex to make motion graphics, animation &amp; video — kinetic typography, data-viz, explainers.</td>
+      <td><span class="code">Codex skill marketplace</span></td>
+    </tr>
+    <tr>
+      <td><strong>svg-animations</strong></td>
+      <td><a href="https://github.com/topics/codex-skill">github.com/topics/codex-skill</a></td>
+      <td>SVG animation skill for Codex. Good for generating vector-based stickman frames.</td>
+      <td><span class="code">Codex skill marketplace</span></td>
+    </tr>
+    <tr>
+      <td><strong>remotion-render (Codex)</strong></td>
+      <td><a href="https://www.skills.sh/magentosh/skills/remotion-render">skills.sh</a></td>
+      <td>Render Remotion videos from Codex. Same as Claude Code skill.</td>
+      <td><span class="code">Codex skill marketplace</span></td>
+    </tr>
+  </table>
+
+  <div class="box">
+    <strong>For Codex CLI (Core Engine Lead):</strong> Install <strong>awesome-codex-skills</strong> (reference the video/animation skills) and <strong>motion-skills</strong> for motion graphics patterns. The SVG animation skill is useful if we go with SVG-based rendering.
+  </div>
+</div>
+
+<hr>
+
+<div class="section">
+  <h1>6. Competitive Landscape (What Exists Today)</h1>
+
+  <table>
+    <tr><th>Product</th><th>Type</th><th>Text-to-Stickman?</th><th>Price</th><th>Notes</th></tr>
+    <tr><td><strong>Pivot Animator</strong></td><td>Manual</td><td>No</td><td>Free</td><td>Most popular stickman tool. Manual frame-by-frame.</td></tr>
+    <tr><td><strong>Stick Nodes</strong></td><td>Manual</td><td>No</td><td>Free</td><td>Mobile stickman animator. Manual.</td></tr>
+    <tr><td><strong>Vyond</strong></td><td>Cartoon</td><td>No</td><td>$649/yr</td><td>Polished animation, drag-drop templates.</td></tr>
+    <tr><td><strong>Animaker</strong></td><td>Cartoon</td><td>No</td><td>$300/yr</td><td>2D animation, drag-drop.</td></tr>
+    <tr><td><strong>AnimCreator</strong></td><td>AI Stickman</td><td>Yes</td><td>Paid</td><td><a href="https://animcreator.studio/">animcreator.studio</a> — closest competitor. Text-to-stickman, timeline, voice sync.</td></tr>
+    <tr><td><strong>Stickman-Studio (OSS)</strong></td><td>AI Pipeline</td><td>Yes</td><td>Free</td><td>Uses Gemini/Imagen. Not deterministic engine like ours.</td></tr>
+    <tr><td><strong>StickFrame</strong></td><td>Deterministic Engine</td><td><strong>Yes</strong></td><td>$0-$49/mo</td><td><strong>Unique position.</strong> No AI needed. Pure deterministic engine.</td></tr>
+  </table>
+
+  <div class="box box-good">
+    <strong>StickFrame's Advantage:</strong> Every existing stickman tool is either (a) manual frame-by-frame, or (b) AI-based (expensive/unpredictable). A deterministic text-to-stickman engine that runs on CPU with zero API costs is a genuinely unique position. AnimCreator is the closest but is proprietary/paid.
+  </div>
+</div>
+
+<hr>
+
+<div class="section">
+  <h1>7. Engineering Recommendations</h1>
+
+  <h2>For Claude Code (Engineering Lead)</h2>
+  <ul>
+    <li><strong>Use pytweening</strong> for all easing/tweening — <span class="code">pip install pytweening</span>, import and done. 0 effort.</li>
+    <li><strong>Reference The-StickMan/stickman.py</strong> for joint rotation math (RotateableLine class)</li>
+    <li><strong>Reference Axis</strong> for keyframe animation approach</li>
+    <li><strong>Install claudedesignskills</strong> — load animation/graphics skills</li>
+    <li><strong>Study Stickman-Studio pipeline</strong> for architecture inspiration (not code reuse)</li>
+  </ul>
+
+  <h2>For Codex CLI (Core Engine Lead)</h2>
+  <ul>
+    <li><strong>Evaluate movis</strong> as a potential rendering backend — test with Python 3.13</li>
+    <li><strong>Use Pillow + subprocess ffmpeg</strong> as the safe default</li>
+    <li><strong>Install motion-skills</strong> for motion graphics patterns</li>
+    <li><strong>Reference Stickman-Studio/ffmpeg stitching</strong> for video export code</li>
+    <li><strong>Keep it simple</strong> — the rendering loop is: draw frame → save PNG → ffmpeg stitch</li>
+  </ul>
+
+  <h2>Where We Must Build From Scratch</h2>
+  <div class="box box-warn">
+    <strong>Unique code that has no existing library to copy from:</strong>
+    <ol>
+      <li><strong>Scene data model</strong> (Scene, Character, Camera, Timeline) — custom to StickFrame</li>
+      <li><strong>Stickman animation keyframes</strong> (walk/run/jump/attack/fall data) — custom authored</li>
+      <li><strong>Script-to-scene parser</strong> (text input → structured scene commands) — unique to StickFrame</li>
+      <li><strong>Action timeline system</strong> (character:hero:walk at t=2.0) — custom DSL</li>
+    </ol>
+    Everything else can leverage existing open-source libraries.
+  </div>
+</div>
+
+<hr>
+
+<div class="section">
+  <h1>8. Link Index (All Resources)</h1>
+
+  <h3>Repos</h3>
+  <ul>
+    <li><a href="https://github.com/saiedpod-bot/Stickman-Studio">Stickman-Studio</a> — AI stickman pipeline (reference)</li>
+    <li><a href="https://github.com/francisA88/The-StickMan">The-StickMan</a> — Kivy stickman framework (math reference)</li>
+    <li><a href="https://github.com/InvertedForest/StickMotion">StickMotion</a> — Diffusion stickman motion</li>
+    <li><a href="https://github.com/aaryan-athena/DanceStickFigure">DanceStickFigure</a> — MediaPipe stickman</li>
+    <li><a href="https://github.com/davepagurek/Axis">Axis</a> — Keyframed stickman animator</li>
+    <li><a href="https://github.com/sanskarchand/bone-animator">bone-animator</a> — Pivot clone</li>
+    <li><a href="https://github.com/rezoo/movis">movis</a> — Python video editing engine (MIT)</li>
+    <li><a href="https://github.com/Automate-Animation/synctoon">SyncToon</a> — AI 2D animation from scripts</li>
+    <li><a href="https://github.com/freshtechbro/claudedesignskills">claudedesignskills</a> — Claude Code animation skills</li>
+    <li><a href="https://github.com/HermeticOrmus/claude-code-game-development">claude-code-game-development</a> — Game dev patterns</li>
+    <li><a href="https://github.com/composio-community/awesome-codex-skills">awesome-codex-skills</a> — Curated Codex skills</li>
+  </ul>
+
+  <h3>Python Packages</h3>
+  <ul>
+    <li><a href="https://pypi.org/project/pytweening/">pytweening</a> — Easing functions</li>
+    <li><a href="https://pypi.org/project/movis/">movis</a> — Video editing engine</li>
+    <li><a href="https://pypi.org/project/drawsvg/">drawsvg</a> — SVG generation</li>
+    <li><a href="https://pypi.org/project/ffmpeg-python/">ffmpeg-python</a> — FFmpeg bindings</li>
+    <li><a href="https://pypi.org/project/pyav/">PyAV</a> — Native FFmpeg interface</li>
+    <li><a href="https://pypi.org/project/moviepy/">moviepy</a> — Video editing</li>
+  </ul>
+
+  <h3>Competitors &amp; Market</h3>
+  <ul>
+    <li><a href="https://animcreator.studio/">AnimCreator</a> — Closest competitor (AI stickman, paid)</li>
+    <li><a href="https://www.pivotanimator.net/">Pivot Animator</a> — Most used stickman tool</li>
+    <li><a href="https://svganimate.ai/en/tools/stick-figure-animation">SVG Animate AI</a> — Online stick figure AI tool</li>
+    <li><a href="https://www.vidnoz.com/ai-solutions/online-stick-figure-animator-ai.html">Vidnoz</a> — Stick figure animator AI</li>
+  </ul>
+
+  <h3>Claude Code / Codex Skills</h3>
+  <ul>
+    <li><a href="https://github.com/freshtechbro/claudedesignskills">claudedesignskills</a> — 3D/WebGL/animation skills for Claude Code</li>
+    <li><a href="https://crossaitools.com/skills/dylantarre/animation-principles/game-development">Animation Principles Skill</a> — Disney principles for Claude Code</li>
+    <li><a href="https://claudeskills.info/skills/inference-sh/skills/ai-video-generation/">AI Video Generation Skill</a> — Video gen for Claude Code</li>
+    <li><a href="https://claudemarketplaces.com/skills/onewave-ai/claude-skills/animate">Animate Skill</a> — Motion graphics skill</li>
+    <li><a href="https://skillsllm.com/skill/motion-skills">motion-skills</a> — Motion graphics for Codex</li>
+    <li><a href="https://github.com/composio-community/awesome-codex-skills">awesome-codex-skills</a> — 150+ Codex skills</li>
+  </ul>
+</div>
+
+<hr>
+
+<div class="section" style="text-align:center; color:#666; font-size:10pt;">
+  <p>StickFrame — Technology Intelligence Report</p>
+  <p>Prepared by Hermes (Research &amp; Intelligence) for the Chief Architect | July 2026</p>
+  <p>All links verified at time of research. Licenses and availability may change.</p>
+</div>
+
+</body>
+</html>
