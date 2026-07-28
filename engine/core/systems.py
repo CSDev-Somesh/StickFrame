@@ -14,6 +14,7 @@ from engine.animation.skeleton import compute_forward_kinematics, apply_action_t
 from engine.animation.easing import interpolate_keyframes
 from engine.renderer.stickman_renderer import draw_stickman
 from engine.timeline.evaluator import TimelineEvaluator
+from engine.animation.generator_system import GeneratorSystem
 
 
 class AnimationSystem:
@@ -193,6 +194,7 @@ class Engine:
         
         # Systems
         self.animation = AnimationSystem()
+        self.generators = GeneratorSystem()
         self.physics = PhysicsSystem(ground_y=height - 20)
         self.renderer = RenderSystem(width, height)
         self.timeline = TimelineEvaluator()
@@ -256,11 +258,11 @@ class Engine:
         # 1. Fire timeline events
         self.timeline.step(dt)
         
-        # 2. Update animations
+        # 2. Update keyframe animations
         anim_entities = self.get_entities_with('animation_player', 'skeleton')
         self.animation.process(dt, anim_entities)
         
-        # 2.5 Apply animation position offsets to entity positions
+        # 2.5 Apply keyframe animation position offsets
         for ent_id, anim in self.get_entities_with('animation_player'):
             if anim.position_offset_x != 0 or anim.position_offset_y != 0:
                 pos = self.entities[ent_id].get('position')
@@ -269,6 +271,18 @@ class Engine:
                     pos.y += anim.position_offset_y
                     anim.position_offset_x = 0
                     anim.position_offset_y = 0
+        
+        # 2.6 Update procedural generators
+        proc_entities = self.get_entities_with('procedural_player', 'skeleton')
+        self.generators.process(dt, proc_entities)
+        
+        # 2.7 Apply procedural position offsets
+        for ent_id, player in self.get_entities_with('procedural_player'):
+            if player.position_offset_x != 0 or player.position_offset_y != 0:
+                pos = self.entities[ent_id].get('position')
+                if pos:
+                    pos.x = pos.x + player.position_offset_x
+                    pos.y = pos.y + player.position_offset_y
         
         # 3. Forward kinematics for all skeletons
         skel_entities = self.get_entities_with('position', 'skeleton')

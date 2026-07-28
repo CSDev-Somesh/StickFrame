@@ -64,15 +64,15 @@ def draw_stickman(
     # 1. Draw bone segments (limbs as lines)
     segments = get_all_bone_segments(skeleton)
     for base, tip in segments:
-        x1 = ox + base[0]
-        y1 = oy + base[1]
-        x2 = ox + tip[0]
-        y2 = oy + tip[1]
+        x1 = base[0]
+        y1 = base[1]
+        x2 = tip[0]
+        y2 = tip[1]
         draw.line([x1, y1, x2, y2], fill=bc, width=lt)
     
     # 2. Draw joint dots (Pivot Animator style)
     if show_joints:
-        joints = get_joint_positions(skeleton, ox, oy)
+        joints = get_joint_positions(skeleton, 0, 0)  # positions already in world space
         for jx, jy, label in joints:
             # Different sizes for different joint types
             if label == "head":

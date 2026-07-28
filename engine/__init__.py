@@ -15,7 +15,7 @@ from PIL import Image
 from engine.core.components import (
     Position, Velocity, Appearance, Skeleton,
     AnimationPlayer, ActionClip, Renderable, Camera, PhysicsBody, Collider,
-    TimelineEvent,
+    TimelineEvent, ProceduralPlayer,
 )
 from engine.core.systems import Engine, AnimationSystem
 from engine.animation.skeleton import build_bipedal_skeleton, compute_forward_kinematics
@@ -59,19 +59,15 @@ class StickFrameEngine(Engine):
         skeleton = build_bipedal_skeleton(scale)
         appearance = Appearance(head_color=head_color, body_color=body_color, scale=scale)
         
-        # Build animation player with all built-in actions
-        anim = AnimationPlayer()
-        for action_name in BUILTIN_ACTIONS:
-            anim.clips[action_name] = get_action(action_name)
-        anim.current_action = "idle"
-        anim.playing = True
+        # Use ProceduralPlayer instead of keyframe AnimationPlayer
+        player = ProceduralPlayer(playing=True)
         
         return self.create_entity({
             'position': Position(x, y),
             'velocity': Velocity(0, 0),
             'skeleton': skeleton,
             'appearance': appearance,
-            'animation_player': anim,
+            'procedural_player': player,
             'renderable': Renderable(visible=True, z_order=0),
             'physics': PhysicsBody(mass=1.0, is_static=False),
             'name': name,
@@ -82,13 +78,11 @@ class StickFrameEngine(Engine):
         
         Args:
             entity_id: The entity ID
-            action_name: Name of built-in action (idle, walk, jump, wave, fall, punch)
+            action_name: Name of procedural action (idle, walk, run, jump, wave, punch, fall)
         """
-        anim = self.entities[entity_id].get('animation_player')
-        if anim and action_name in anim.clips:
-            anim.current_action = action_name
-            anim.time = 0.0
-            anim.playing = True
+        player = self.entities[entity_id].get('procedural_player')
+        if player:
+            self.generators.start_action(player, action_name)
     
     def set_position(self, entity_id: int, x: float, y: float) -> None:
         """Set a character's position."""
@@ -122,6 +116,10 @@ class StickFrameEngine(Engine):
         
         # Auto-wire timeline events to entity actions
         self.timeline.on("*", self._timeline_handler)
+        
+        # Start idle on all characters that have a procedural player
+        for ent_id, player in self.get_entities_with('procedural_player'):
+            self.generators.start_action(player, 'idle')
         
         self._export.start()
         

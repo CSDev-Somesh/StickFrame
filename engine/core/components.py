@@ -80,7 +80,7 @@ class ActionClip:
 
 @dataclass
 class AnimationPlayer:
-    """Runtime state for playing animation clips"""
+    """Runtime state for playing animation clips (keyframe-based)"""
     current_action: Optional[str] = None   # name of current clip
     clips: Dict[str, ActionClip] = field(default_factory=dict)
     time: float = 0.0
@@ -96,10 +96,30 @@ class AnimationPlayer:
     # Track previous frame's position keyframe value to compute delta
     _prev_pos_x: float = 0.0
     _prev_pos_y: float = 0.0
-    # Per-cycle offset for looping clips (so loops don't reset position)
+    # Per-cycle offset for looping clips
     _cycle_pos_x: float = 0.0
     _cycle_pos_y: float = 0.0
     _last_cycle_start: float = 0.0
+
+
+@dataclass
+class ProceduralPlayer:
+    """Runtime state for playing procedural animation generators.
+    
+    Unlike AnimationPlayer (keyframe-based), this uses math generators
+    that produce bone angles on the fly from parameters.
+    """
+    current_action: Optional[str] = None
+    time: float = 0.0
+    speed: float = 1.0
+    playing: bool = False
+    loop: bool = True
+    params: Dict[str, Any] = field(default_factory=dict)  # generator parameters
+    # Position tracking for generators that move the character
+    position_offset_x: float = 0.0
+    position_offset_y: float = 0.0
+    _prev_offset_x: float = 0.0
+    _prev_offset_y: float = 0.0
 
 
 # ─── Physics Components ──────────────────────────────────────
