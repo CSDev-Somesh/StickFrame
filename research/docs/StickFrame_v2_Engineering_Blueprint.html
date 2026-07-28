@@ -1,0 +1,1230 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @page { size: A4; margin: 2cm; @bottom-center { content: "Page " counter(page); font-size: 9px; color: #888; } }
+  body { font-family: 'Helvetica', 'Arial', sans-serif; color: #222; line-height: 1.6; font-size: 10.5pt; }
+  h1 { color: #1a1a2e; border-bottom: 3px solid #e94560; padding-bottom: 6px; margin-top: 28px; font-size: 20pt; }
+  h2 { color: #1a1a2e; border-bottom: 1.5px solid #0f3460; padding-bottom: 4px; margin-top: 22px; font-size: 14pt; }
+  h3 { color: #0f3460; margin-top: 16px; font-size: 12pt; }
+  h4 { color: #533483; margin-top: 10px; font-size: 10.5pt; }
+  .header { text-align: center; margin-bottom: 30px; padding: 30px; background: linear-gradient(135deg, #1a1a2e, #16213e); color: white; border-radius: 8px; }
+  .header h1 { color: white; border: none; font-size: 24pt; margin: 0; letter-spacing: 1px; }
+  .header .subtitle { color: #e94560; font-size: 11pt; margin: 4px 0; text-transform: uppercase; letter-spacing: 3px; }
+  .header .meta { color: #8892b0; font-size: 9pt; margin-top: 8px; }
+  .header .classification { border: 1px solid #e94560; display: inline-block; padding: 4px 16px; font-size: 8pt; letter-spacing: 2px; margin-top: 6px; color: #e94560; }
+  .section { margin: 18px 0; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 9.5pt; }
+  th { background: #1a1a2e; color: white; padding: 6px 8px; text-align: left; font-size: 9pt; }
+  td { padding: 5px 8px; border-bottom: 1px solid #ddd; }
+  tr:nth-child(even) td { background: #f8f9fa; }
+  a { color: #0f3460; text-decoration: none; }
+  .box { border: 1px solid #ddd; border-left: 4px solid #0f3460; padding: 10px 14px; margin: 10px 0; background: #f8f9fa; border-radius: 4px; font-size: 10pt; }
+  .box-warn { border-left-color: #e94560; background: #fff5f5; }
+  .box-good { border-left-color: #28a745; background: #f0fff4; }
+  .box-info { border-left-color: #17a2b8; background: #e7f7fb; }
+  hr { border: none; border-top: 1px solid #ddd; margin: 18px 0; }
+  .code { font-family: 'Courier New', monospace; background: #eee; padding: 1px 4px; border-radius: 3px; font-size: 9pt; }
+  pre { background: #1e1e2e; color: #cdd6f4; padding: 10px; border-radius: 5px; font-size: 8.5pt; overflow-x: auto; }
+  .toc { background: #f8f9fa; border: 1px solid #ddd; padding: 15px; border-radius: 5px; font-size: 10pt; }
+  .toc a { display: block; padding: 2px 0; }
+  .toc .toc-h1 { font-weight: bold; margin-top: 6px; }
+  .toc .toc-h2 { padding-left: 20px; font-size: 9.5pt; }
+  .toc .toc-h3 { padding-left: 40px; font-size: 9pt; color: #555; }
+  .tag-green { background: #d4edda; color: #155724; padding: 1px 6px; border-radius: 10px; font-size: 8pt; }
+  .tag-red { background: #f8d7da; color: #721c24; padding: 1px 6px; border-radius: 10px; font-size: 8pt; }
+  .tag-blue { background: #d1ecf1; color: #0c5460; padding: 1px 6px; border-radius: 10px; font-size: 8pt; }
+  .tag-orange { background: #ffeeba; color: #856404; padding: 1px 6px; border-radius: 10px; font-size: 8pt; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>STICKFRAME</h1>
+  <div class="subtitle">Animation Operating System — Engineering Blueprint v2</div>
+  <div class="meta">Principal Research Engineer | Internal Design Document | July 2026</div>
+  <div class="classification">CONFIDENTIAL — ENGINEERING INTERNAL</div>
+</div>
+
+<div class="toc">
+  <strong>Table of Contents</strong>
+  <span class="toc-h1">1. Vision</span>
+  <span class="toc-h1">2. Engineering Philosophy</span>
+  <span class="toc-h1">3. Core Principles</span>
+  <span class="toc-h1">4. Product Scope</span>
+  <span class="toc-h1">5. Functional Requirements</span>
+  <span class="toc-h1">6. Non-Functional Requirements</span>
+  <span class="toc-h1">7. System Architecture</span>
+  <span class="toc-h1">8. Engine Architecture</span>
+  <span class="toc-h1">9. Rendering Pipeline</span>
+  <span class="toc-h1">10. Scene Graph</span>
+  <span class="toc-h1">11. World State Management</span>
+  <span class="toc-h1">12. Character System</span>
+  <span class="toc-h1">13. Physics System</span>
+  <span class="toc-h1">14. Camera System</span>
+  <span class="toc-h1">15. Timeline System</span>
+  <span class="toc-h1">16. Dialogue System</span>
+  <span class="toc-h1">17. Story Understanding Layer</span>
+  <span class="toc-h1">18. AI Director Layer (future)</span>
+  <span class="toc-h1">19. Rendering Infrastructure</span>
+  <span class="toc-h1">20. Performance Strategy</span>
+  <span class="toc-h1">21. Storage Architecture</span>
+  <span class="toc-h1">22. Networking</span>
+  <span class="toc-h1">23. Security</span>
+  <span class="toc-h1">24. Plugin Architecture</span>
+  <span class="toc-h1">25. API Strategy</span>
+  <span class="toc-h1">26. Testing Strategy</span>
+  <span class="toc-h1">27. Scalability</span>
+  <span class="toc-h1">28. Risks</span>
+  <span class="toc-h1">29. Research Areas</span>
+  <span class="toc-h1">30. Five-Year Engineering Roadmap</span>
+</div>
+
+<hr>
+
+<!-- SECTION 1 -->
+<div class="section">
+  <h1>1. Vision</h1>
+  
+  <p>StickFrame is a programmable animation operating system. It transforms structured stories, scripts, and eventually natural language into complete stickman-animated movies with deterministic, reproducible output.</p>
+
+  <p>The system is not an AI video generator. AI is a component, not the foundation. The core is a deterministic engine that takes a well-defined scene description and produces a video. AI layers sit above this core to assist with story breakdown, cinematography decisions, and character direction — but the rendering pipeline itself is fully deterministic.</p>
+
+  <p>StickFrame must scale from a 10-second social media clip to a feature-length movie (90+ minutes) within the same architecture. A short clip and a feature film use the same engine, same data model, same pipeline — only the scale of the input differs.</p>
+
+  <div class="box">
+    <strong>Platform Characteristics:</strong>
+    <ul>
+      <li>Deterministic core engine — same input always produces identical output</li>
+      <li>AI as augmentation, not replacement — story understanding and director guidance are optional layers</li>
+      <li>Programmable at every level — from the scene DSL to the rendering plugin API</li>
+      <li>Distributed by design — rendering scales horizontally across worker nodes</li>
+      <li>Character consistency across any project length — persistent rigs, appearance, and behavior definitions</li>
+    </ul>
+  </div>
+</div>
+
+<hr>
+
+<!-- SECTION 2 -->
+<div class="section">
+  <h1>2. Engineering Philosophy</h1>
+
+  <h3>2.1 Determinism First</h3>
+  <p>Frame rendering must be deterministic. Given identical scene input (scripts, character definitions, timeline, random seed), the engine must produce byte-identical output. This enables caching, incremental rendering, regression testing, and distributed rendering where any node can render any frame independently.</p>
+
+  <h3>2.2 Separation of Concerns</h3>
+  <p>The system is organized into distinct layers: story understanding → scene planning → deterministic engine → rendering. Each layer communicates through well-defined interfaces. The deterministic engine never depends on the story understanding layer. The story layer can be replaced, upgraded, or removed without affecting the rendering pipeline.</p>
+
+  <h3>2.3 Progressive Complexity</h3>
+  <p>New users produce output with minimal input (single sentence → 30-second video). Power users access the full system: custom rigs, physics overrides, per-scene camera scripts, plugin-defined rendering effects. The same architecture serves both cases — the simple path simply uses sensible defaults at every layer.</p>
+
+  <h3>2.4 Composition Over Inheritance</h3>
+  <p>The scene graph uses an Entity-Component-System (ECS) architecture rather than deep class hierarchies. Characters, props, cameras, and lights are entities with attached components (TransformComponent, SpriteComponent, AnimationComponent, PhysicsComponent). Systems operate on entities that possess the required component set. This enables the animation equivalent of Blender's node system — composable behavior without rigid class trees.</p>
+
+  <h3>2.5 Format Agnostic Storage</h3>
+  <p>All project data is stored in a versioned, schema-less document format. The internal representation is never tied to a specific file format. Export plugins convert to MP4, GIF, PNG sequence, or custom formats. Import plugins ingest from Pivot .stk, Spine .json, DragonBones, and custom sources.</p>
+</div>
+
+<hr>
+
+<!-- SECTION 3 -->
+<div class="section">
+  <h1>3. Core Principles</h1>
+
+  <ol>
+    <li><strong>Deterministic Pipeline.</strong> Every stage from scene parsing to frame output is deterministic. Nondeterministic components (AI, random generation) are isolated in the story understanding layer and produce deterministic intermediate output.</li>
+    <li><strong>Operator at Every Level.</strong> Users and plugins can insert operators at any pipeline stage: pre-processing scripts, post-processing effects, custom physics solvers, alternative renderers. The pipeline is a directed acyclic graph of operators.</li>
+    <li><strong>Cache Invalidation Is Explicit.</strong> Each frame's dependency graph is tracked. Changing a character's color invalidates only frames containing that character. Changing a physics parameter invalidates only affected simulation frames.</li>
+    <li><strong>Offline-First Architecture.</strong> The engine runs entirely offline. Cloud features (collaboration, distributed rendering, asset marketplace) are optional network layers on top of a local-first core.</li>
+    <li><strong>Backward Compatibility.</strong> Projects created in v1.0 must render identically in v5.0. The scene document format includes a version field and explicit upgrade paths are never silently applied.</li>
+    <li><strong>Measured Before Optimized.</strong> No optimization without profiling. The engine includes built-in instrumentation at every pipeline stage. Frame render times, memory usage, cache hit rates, and system latencies are always measurable.</li>
+    <li><strong>Fail Verbosely.</strong> Every validation failure produces a machine-readable error with the exact location and reason. Debug mode outputs per-frame intermediate state as JSON for inspection.</li>
+  </ol>
+</div>
+
+<hr>
+
+<!-- SECTION 4 -->
+<div class="section">
+  <h1>4. Product Scope</h1>
+
+  <h3>4.1 In Scope</h3>
+  <ul>
+    <li>Structured script to stickman animation (deterministic engine)</li>
+    <li>Multiple simultaneous stickman characters with distinct rigs and appearances</li>
+    <li>Action library: walk, run, jump, attack, fall, idle, wave, sit, point, climb, swim, fly, dance, fight, dodge, block, roll, hug, cry, laugh, bow, spin — extensible via custom action definitions</li>
+    <li>Scene composition: backgrounds, props, weather effects, lighting overlays</li>
+    <li>Camera system: pan, zoom, follow, shake, split-screen, multi-scene</li>
+    <li>Dialogue: speech bubbles, subtitle tracks, TTS voiceover</li>
+    <li>Audio: SFX library, background music, per-action sound attachments</li>
+    <li>Export: MP4, GIF, PNG sequence, vertical format (9:16 for Shorts/Reels)</li>
+    <li>Plugin API for custom rendering effects, importers, exporters, physics solvers</li>
+    <li>Distributed rendering across worker nodes</li>
+  </ul>
+
+  <h3>4.2 Out of Scope (v1-v2)</h3>
+  <ul>
+    <li>Real-time interactive editing (focus is batch rendering from script)</li>
+    <li>3D rendering (stickman is a 2D abstraction; 3D is a separate project)</li>
+    <li>Full non-linear video editor (external NLE integration via plugin API)</li>
+    <li>Procedural voice acting (TTS integration is via plugin)</li>
+    <li>User-generated marketplace (post-v2 community feature)</li>
+  </ul>
+</div>
+
+<hr>
+
+<!-- SECTION 5 -->
+<div class="section">
+  <h1>5. Functional Requirements</h1>
+
+  <table>
+    <tr><th>ID</th><th>Requirement</th><th>Priority</th></tr>
+    <tr><td>FR-01</td><td>The engine shall accept a structured scene description (JSON or DSL) and produce an MP4 video without any human intervention.</td><td><span class="tag-green">P0</span></td></tr>
+    <tr><td>FR-02</td><td>The engine shall support at least 50 simultaneous characters in a single scene.</td><td><span class="tag-blue">P1</span></td></tr>
+    <tr><td>FR-03</td><td>The action library shall contain at least 20 built-in actions, each defined by skeletal keyframes.</td><td><span class="tag-green">P0</span></td></tr>
+    <tr><td>FR-04</td><td>The engine shall support user-defined actions via a JSON keyframe format.</td><td><span class="tag-blue">P1</span></td></tr>
+    <tr><td>FR-05</td><td>The timeline shall support event scheduling at sub-frame precision.</td><td><span class="tag-green">P0</span></td></tr>
+    <tr><td>FR-06</td><td>The camera shall support keyframe-based movement with tweening.</td><td><span class="tag-blue">P1</span></td></tr>
+    <tr><td>FR-07</td><td>The engine shall support scene transitions (cut, fade, crossfade, wipe).</td><td><span class="tag-blue">P1</span></td></tr>
+    <tr><td>FR-08</td><td>Dialogue shall support speech bubble rendering with configurable bubble styles.</td><td><span class="tag-orange">P2</span></td></tr>
+    <tr><td>FR-09</td><td>The engine shall support TTS voiceover via a plugin provider interface.</td><td><span class="tag-blue">P1</span></td></tr>
+    <tr><td>FR-10</td><td>Rendering shall be reproducible: same input + seed = byte-identical output.</td><td><span class="tag-green">P0</span></td></tr>
+    <tr><td>FR-11</td><td>The engine shall support distributed rendering where frames are divided across worker nodes.</td><td><span class="tag-blue">P1</span></td></tr>
+    <tr><td>FR-12</td><td>The plugin system shall support custom render passes, importers, exporters, and physics solvers.</td><td><span class="tag-blue">P1</span></td></tr>
+    <tr><td>FR-13</td><td>The system shall provide a REST API for job submission, status polling, and result retrieval.</td><td><span class="tag-orange">P2</span></td></tr>
+    <tr><td>FR-14</td><td>The project format shall be forward-compatible: projects openable by newer versions.</td><td><span class="tag-green">P0</span></td></tr>
+  </table>
+</div>
+
+<hr>
+
+<!-- SECTION 6 -->
+<div class="section">
+  <h1>6. Non-Functional Requirements</h1>
+
+  <table>
+    <tr><th>ID</th><th>Requirement</th><th>Target</th></tr>
+    <tr><td>NFR-01</td><td>Frame render latency (single character, no effects)</td><td>&lt; 10 ms per frame (CPU-only)</td></tr>
+    <tr><td>NFR-02</td><td>Maximum scene duration (single project)</td><td>Unlimited (tested to 3 hours)</td></tr>
+    <tr><td>NFR-03</td><td>Maximum characters per scene</td><td>200+ (bottleneck is available RAM)</td></tr>
+    <tr><td>NFR-04</td><td>Deterministic output guarantee</td><td>100% — across OS, Python version, hardware</td></tr>
+    <tr><td>NFR-05</td><td>Cache hit rate (incremental renders)</td><td>Target &gt; 90% for single-character changes</td></tr>
+    <tr><td>NFR-06</td><td>Maximum project file size</td><td>Unlimited (streaming document model)</td></tr>
+    <tr><td>NFR-07</td><td>Memory per worker process</td><td>Configurable ceiling (default 512 MB)</td></tr>
+    <tr><td>NFR-08</td><td>Plugin isolation</td><td>Plugins cannot crash the engine (sandboxed)</td></tr>
+    <tr><td>NFR-09</td><td>API response time (job submission)</td><td>&lt; 100 ms</td></tr>
+    <tr><td>NFR-10</td><td>Cross-platform</td><td>Linux (primary), macOS, Windows</td></tr>
+    <tr><td>NFR-11</td><td>Backward compatibility</td><td>All scene files from v1.0 openable in v5.0</td></tr>
+  </table>
+</div>
+
+<hr>
+
+<!-- SECTION 7 -->
+<div class="section">
+  <h1>7. System Architecture</h1>
+
+  <p>The system is organized into five architectural layers, each with defined boundaries and interfaces:</p>
+
+  <pre>
+  ┌─────────────────────────────────────────────────────────────┐
+  │                    PRESENTATION LAYER                        │
+  │  CLI        Web Dashboard        REST API        SDK        │
+  └──────────────────────────┬──────────────────────────────────┘
+                             │
+  ┌──────────────────────────▼──────────────────────────────────┐
+  │                  ORCHESTRATION LAYER                         │
+  │  Job Scheduler  │  Pipeline Manager  │  Cache Controller    │
+  │  Worker Pool    │  Dependency Graph  │  Render Queue         │
+  └──────────────────────────┬──────────────────────────────────┘
+                             │
+  ┌──────────────────────────▼──────────────────────────────────┐
+  │                   ENGINE LAYER (Deterministic Core)          │
+  │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐    │
+  │  │  Scene   │  │   Rig    │  │  Action  │  │ Physics  │    │
+  │  │  Graph   │  │  Solver  │  │   Player │  │  Solver  │    │
+  │  └──────────┘  └──────────┘  └──────────┘  └──────────┘    │
+  │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐    │
+  │  │  Camera  │  │Dialogue  │  │ Timeline │  │  World   │    │
+  │  │  System  │  │ Engine   │  │Evaluator │  │  State   │    │
+  │  └──────────┘  └──────────┘  └──────────┘  └──────────┘    │
+  └──────────────────────────┬──────────────────────────────────┘
+                             │
+  ┌──────────────────────────▼──────────────────────────────────┐
+  │                   RENDERING LAYER                            │
+  │  Frame Renderer  │  Compositor  │  Export Pipeline           │
+  │  Software Render │  GPU Render  │  ffmpeg / custom           │
+  └──────────────────────────┬──────────────────────────────────┘
+                             │
+  ┌──────────────────────────▼──────────────────────────────────┐
+  │                   STORAGE LAYER                              │
+  │  Project DB  │  Asset Store  │  Cache   │  Scene Archive    │
+  └─────────────────────────────────────────────────────────────┘
+  </pre>
+
+  <p><strong>Orchestration layer</strong> manages job lifecycle: parsing input, building dependency graphs, dispatching frames to workers, collecting results, and managing caches. It does no rendering work itself.</p>
+
+  <p><strong>Engine layer</strong> is the deterministic core. It takes a fully resolved scene and produces a list of per-frame draw commands. No randomness. No external calls. Everything is computed from the scene state alone.</p>
+
+  <p><strong>Rendering layer</strong> converts draw commands into pixels. It supports a software renderer (Pillow-based, deterministic) and will support a GPU-accelerated renderer via another plugin. The rendering layer is stateless — it receives a frame's draw commands and returns an image.</p>
+</div>
+
+<hr>
+
+<!-- SECTION 8 -->
+<div class="div">
+  <h1>8. Engine Architecture</h1>
+
+  <p>The engine follows a fixed-timestep update loop inspired by game engine architecture (Godot, Unity):</p>
+
+  <pre>
+  For each frame at time T:
+    1. Scene Graph Traversal — build list of visible entities with transforms
+    2. Timeline Evaluation — resolve which actions are active at T
+    3. Action Player Update — advance each character's animation by dt
+    4. Rig Solver — compute joint positions from current keyframe
+    5. Physics Tick — advance physics simulation by fixed dt
+    6. Camera System — compute viewport transform from camera keyframes
+    7. Dialogue Engine — resolve speech bubble state at T
+    8. Draw Command Generation — produce sorted list of draw commands
+    9. Submit to Render Queue
+  </pre>
+
+  <p>The engine operates on a <strong>fixed internal timestep</strong> (default 60 Hz) independent of the output frame rate. Rendering can output at any integer divisor (30 fps, 24 fps, 12 fps) by sampling the internal state at the appropriate interval.</p>
+
+  <p><strong>Systems within the engine are ordered and deterministic.</strong> The system execution order is fixed per engine version. Each system receives the world state and returns a diff. Systems are pure functions of (input state, delta time) → output state plus draw commands.</p>
+
+  <div class="box-info">
+    <strong>Reference Architecture:</strong> Godot Engine's scene system (nodes as composable elements, not inheritance) and Bevy Engine's ECS architecture (systems operating on query results from component tables). The StickFrame engine is simpler — it does not need to handle real-time input, but it must handle far longer durations (hours vs minutes).
+  </div>
+</div>
+
+<hr>
+
+<!-- SECTION 9 -->
+<div class="div">
+  <h1>9. Rendering Pipeline</h1>
+
+  <p>The rendering pipeline converts per-frame draw commands into pixels. The pipeline is a fixed sequence of stages, each of which can be extended via plugins:</p>
+
+  <pre>
+  Draw Commands (sorted by Z-order)
+      │
+  ┌───▼───────────────────────────────────────┐
+  │  Stage 1: Background Rendering             │
+  │  - Solid color fills                       │
+  │  - Gradient backgrounds                    │
+  │  - Image backgrounds (with parallax)       │
+  └───────────┬───────────────────────────────┘
+              │
+  ┌───────────▼───────────────────────────────┐
+  │  Stage 2: Object Rendering                 │
+  │  - Static props (trees, buildings, etc.)   │
+  │  - Particle systems (rain, smoke, FX)      │
+  └───────────┬───────────────────────────────┘
+              │
+  ┌───────────▼───────────────────────────────┐
+  │  Stage 3: Character Rendering              │
+  │  - Stickman limbs (line segments)          │
+  │  - Stickman heads (circles/ellipses)       │
+  │  - Attachments (hats, weapons, items)      │
+  │  - Shadow under character                  │
+  └───────────┬───────────────────────────────┘
+              │
+  ┌───────────▼───────────────────────────────┐
+  │  Stage 4: Effects Layer                    │
+  │  - Screen shake offset                     │
+  │  - Lighting overlays                       │
+  │  - Weather effects (rain, snow overlays)   │
+  │  - Custom plugin effects                   │
+  └───────────┬───────────────────────────────┘
+              │
+  ┌───────────▼───────────────────────────────┐
+  │  Stage 5: UI / Dialogue Layer              │
+  │  - Speech bubbles                          │
+  │  - Subtitles                               │
+  │  - HUD elements (health bars, etc.)        │
+  └───────────┬───────────────────────────────┘
+              │
+  ┌───────────▼───────────────────────────────┐
+  │  Stage 6: Output & Encode                  │
+  │  - Multi-frame anti-aliasing               │
+  │  - Frame metadata injection                │
+  │  - ffmpeg encoding (H.264, VP9, GIF)       │
+  └───────────────────────────────────────────┘
+  </pre>
+
+  <p><strong>Software renderer (default):</strong> Uses Pillow as the canvas. Each draw command is resolved to Pillow operations (line, ellipse, polygon, text). The renderer maintains a pixel buffer per frame and composites layers in Z-order.</p>
+
+  <p><strong>GPU renderer (future):</strong> Draw commands are translated to OpenGL/Vulkan draw calls. The same command format serves both renderers. The choice of renderer does not affect output — the same scene should produce perceptually identical results.</p>
+</div>
+
+<hr>
+
+<!-- SECTION 10 -->
+<div class="div">
+  <h1>10. Scene Graph</h1>
+
+  <p>The scene graph is an Entity-Component tree. Every entity has a Transform component that defines its position, rotation, and scale relative to its parent. The tree structure enables hierarchical animation — moving a parent entity moves all children.</p>
+
+  <pre>
+  Scene (root)
+  ├── Camera
+  │   └── CameraConfig (FOV, zoom, clipping)
+  ├── Environment
+  │   ├── Background
+  │   │   ├── SkyGradient
+  │   │   └── ParallaxLayer[0..N]
+  │   └── AmbientLight
+  ├── Character[0..N]
+  │   ├── Transform (position, rotation, scale)
+  │   ├── Appearance (head shape, colors, limb proportions)
+  │   ├── AnimationPlayer (current action, frame, blend state)
+  │   ├── SkeletonRig (joint angles, bone lengths)
+  │   ├── PhysicsBody (if physics-enabled)
+  │   └── Attachment[0..N] (weapons, hats, held items)
+  │       └── Transform (relative to attach point)
+  ├── Prop[0..N]
+  │   ├── Transform
+  │   ├── Shape (rectangle, circle, polygon, image)
+  │   ├── PhysicsBody (optional)
+  │   └── AnimationPlayer (if animated prop)
+  ├── ParticleEmitter[0..N]
+  │   ├── Transform
+  │   └── ParticleConfig (rate, lifetime, speed, color)
+  └── Timeline
+      ├── Track[0..N] (parallel event sequences)
+      └── GlobalTime
+  </pre>
+
+  <div class="box">
+    <strong>Design Decision:</strong> Scene graph uses a flat ID-based entity lookup (hash map) for O(1) entity access, with a separate hierarchical tree for transform resolution. This split enables fast entity queries for systems while maintaining parent-child semantics for transforms. Godot Engine uses a similar approach with NodePaths vs direct references.
+  </div>
+</div>
+
+<hr>
+
+<!-- SECTION 11 -->
+<div class="div">
+  <h1>11. World State Management</h1>
+
+  <p>World state is the authoritative representation of everything in the scene at a given point in time. It is a snapshot of all entity component data. The world state is immutable — each frame produces a new world state from the previous state plus the delta-time update.</p>
+
+  <p><strong>State structure:</strong></p>
+  <pre>
+  WorldState:
+    frame_number: int
+    time: float (seconds)
+    seed: int (for deterministic RNG)
+    entities: { entity_id: ComponentBag }
+    scene_graph: adjacency list (parent-child relationships)
+    camera_state: { position, zoom, target }
+    global_flags: { dialogue_active, scene_transitioning, ... }
+  </pre>
+
+  <p><strong>State query system:</strong> Systems query state using a query language: <span class="code">entities_with(TransformComponent, AnimationComponent)</span>. This is the ECS pattern. The query result is a read-only view. Systems produce diffs that are applied atomically to produce the next state.</p>
+
+  <p><strong>Deterministic RNG:</strong> Each frame has a deterministic seed derived from the project seed + frame number. Any system that needs random values (particle systems, camera shake) uses this seeded RNG. This guarantees reproducibility.</p>
+
+  <p><strong>Dirty region tracking:</strong> When a component changes, the system records which entities and components were affected. This feeds the frame cache — unchanged entities reuse cached draw commands from the previous frame.</p>
+</div>
+
+<hr>
+
+<!-- SECTION 12 -->
+<div class="div">
+  <h1>12. Character System</h1>
+
+  <h3>12.1 Skeleton Rig</h3>
+  <p>The stickman skeleton is a hierarchical bone structure. Each bone has an angle relative to its parent bone. The root bone (body center) is positioned at the character's world position.</p>
+
+  <pre>
+  Bone Hierarchy (relative to parent):
+  body (root, world position)
+    ├── head (offset from body top)
+    ├── left_arm.upper (from shoulder)
+    │   └── left_arm.lower (from elbow)
+    ├── right_arm.upper
+    │   └── right_arm.lower
+    ├── left_leg.upper (from hip)
+    │   └── left_leg.lower (from knee)
+    └── right_leg.upper
+        └── right_leg.lower
+  </pre>
+
+  <h3>12.2 Appearance</h3>
+  <p>Appearance is a component, not a property of the character class. This allows multiple characters to share a rig but have different appearances, and for appearance to be animated independently of the skeleton (glow effects, color cycling).</p>
+
+  <p>Appearance properties: head_radius, body_length, limb_thickness, segment_colors (per bone group), head_color, eye_style, attachment_points (named positions for accessories).</p>
+
+  <h3>12.3 Action Definitions</h3>
+  <p>Each action is a named sequence of keyframes. Each keyframe specifies bone angles at a point in time. Actions are defined independently of the skeleton — the same "walk" action works on any bipedal rig with compatible bone names.</p>
+
+  <pre>
+  Action "walk":
+    duration: 0.8s  (at 1.0x speed)
+    keyframes:
+      - time: 0.0
+        bones: { left_arm.upper: 30°, right_leg.upper: -25°, ... }
+        easing: linear
+      - time: 0.25
+        bones: { left_arm.upper: 0°, right_leg.upper: 0°, ... }
+        easing: ease_in_out
+      - time: 0.5
+        bones: { left_arm.upper: -30°, right_leg.upper: 25°, ... }
+        easing: linear
+      - time: 0.75
+        bones: { ... }
+        easing: ease_in_out
+    loop: true
+    speed_multiplier: 1.0
+  </pre>
+
+  <h3>12.4 Action Blending</h3>
+  <p>When transitioning between actions (e.g., walk → jump), the engine cross-fades the bone angles over a configurable blend duration. The blend uses spherical linear interpolation (slerp) for angles to avoid gimbal lock artifacts. Multiple actions can layer — upper body attacks while lower body walks.</p>
+
+  <p>Action layering uses a priority system. Higher-priority actions override specific bone groups. A punch action (priority 10) overrides arm bones while the walk action (priority 0) continues to animate leg bones beneath it.</p>
+</div>
+
+<hr>
+
+<!-- SECTION 13 -->
+<div class="div">
+  <h1>13. Physics System</h1>
+
+  <p>The physics system provides optional physical simulation for characters and props. It is a deterministic 2D physics engine, not a general-purpose physics library wrapper. This ensures deterministic output independent of the underlying physics library.</p>
+
+  <h3>13.1 Scope</h3>
+  <ul>
+    <li>Gravity simulation for falling objects and characters</li>
+    <li>Collision detection between characters and props (axis-aligned bounding boxes)</li>
+    <li>Simple ragdoll physics (joint constraints with angular limits)</li>
+    <li>Projectile motion (thrown objects, arrows)</li>
+    <li>Platform collision (characters standing on surfaces)</li>
+  </ul>
+
+  <h3>13.2 Design</h3>
+  <p>Physics entities have a PhysicsBody component with mass, velocity, collision shape (rectangle, circle), and physics flags (gravity_enabled, collisions_enabled, kinematic). The physics system runs at a fixed sub-step (default 120 Hz) independent of the render frame rate, with configurable sub-step count for stability.</p>
+
+  <p>Physics is optional. A character without a PhysicsBody component uses its animation keyframes directly — the root position is determined by the animation, not physics. This enables hybrid scenes where some characters follow scripted paths and others are physically simulated.</p>
+
+  <div class="box-warn">
+    <strong>Constraint:</strong> Physics introduces potential nondeterminism due to floating-point accumulation differences across platforms. Mitigation: use fixed-point arithmetic for physics simulation, or a strict cross-platform math library. The physics engine includes a validation step: after each sub-step, the total energy of the system is checked against a tolerance. Energy drift triggers a warning but does not abort rendering.
+  </div>
+</div>
+
+<hr>
+
+<!-- SECTION 14 -->
+<div class="div">
+  <h1>14. Camera System</h1>
+
+  <p>The camera determines the viewport transform applied to all scene elements before rendering. The camera system supports multiple camera definitions within a scene, with the active camera switching at configurable times.</p>
+
+  <h3>14.1 Camera Properties</h3>
+  <ul>
+    <li><strong>Viewport:</strong> width, height, aspect ratio (16:9, 9:16, 1:1, custom)</li>
+    <li><strong>Position:</strong> offset from scene origin (x, y)</li>
+    <li><strong>Zoom:</strong> scale factor (1.0 = default, 2.0 = 2x zoom)</li>
+    <li><strong>Rotation:</strong> viewport rotation (degrees)</li>
+    <li><strong>Target:</strong> optional entity ID for follow camera</li>
+    <li><strong>Follow offset:</strong> (x, y) offset from tracked entity</li>
+    <li><strong>Follow smoothness:</strong> lerp factor for camera catch-up</li>
+  </ul>
+
+  <h3>14.2 Camera Keyframes</h3>
+  <p>Camera movement is keyframe-able, same as character actions. Camera keyframes interpolate position, zoom, and rotation. Easing functions apply. Multiple camera tracks can exist in parallel — the active track is selected by the timeline.</p>
+
+  <h3>14.3 Special Camera Modes</h3>
+  <ul>
+    <li><strong>Shake:</strong> Perlin-noise-based screen offset with configurable intensity and frequency</li>
+    <li><strong>Split screen:</strong> Divide viewport into regions, each with an independent camera</li>
+    <li><strong>Picture-in-picture:</strong> Small second viewport overlaid on main viewport</li>
+    <li><strong>Wide shot:</strong> Zoom out to show entire scene (auto-calculate zoom from entity bounding box)</li>
+    <li><strong>Dynamic framing:</strong> Auto-adjust zoom to keep all characters visible</li>
+  </ul>
+</div>
+
+<hr>
+
+<!-- SECTION 15 -->
+<div class="div">
+  <h1>15. Timeline System</h1>
+
+  <p>The timeline is the central coordination mechanism. It describes what happens, when, and to whom. The timeline is a sequence of parallel and serial event tracks.</p>
+
+  <h3>15.1 Timeline Structure</h3>
+  <pre>
+  Timeline:
+    metadata: { fps, duration, project_version }
+    tracks:
+      - track_id: "character_hero"
+        type: action_sequence
+        events:
+          - time: 0.0
+            action: "idle"
+            params: {}
+          - time: 2.0
+            action: "walk"
+            params: { direction: "right", speed: 1.0 }
+          - time: 4.5
+            action: "jump"
+            params: { height: 100, distance: 150 }
+          - time: 6.0
+            action: "attack"
+            params: { target: "villain", attack_type: "punch" }
+
+      - track_id: "camera_main"
+        type: camera_track
+        events:
+          - time: 0.0
+            target: "hero"
+            zoom: 1.0
+          - time: 3.0
+            target: "hero+villain"
+            zoom: 0.7
+          - time: 5.0
+            shake: { intensity: 0.5, duration: 0.3 }
+
+      - track_id: "dialogue_hero"
+        type: dialogue_track
+        events:
+          - time: 1.0
+            text: "You'll never get away with this!"
+            style: angry
+          - time: 4.0
+            text: "Ha! Take that!"
+            style: happy
+
+      - track_id: "scene_transitions"
+        type: transition_track
+        events:
+          - time: 0.0
+            type: "cut"
+          - time: 10.0
+            type: "fade"
+            duration: 1.0
+  </pre>
+
+  <h3>15.2 Event Types</h3>
+  <ul>
+    <li><strong>action_sequence:</strong> Ordered list of character actions with timing and parameters</li>
+    <li><strong>camera_track:</strong> Camera keyframes, target changes, effects</li>
+    <li><strong>dialogue_track:</strong> Speech events with text, style, voice</li>
+    <li><strong>transition_track:</strong> Scene change events (cut, fade, wipe)</li>
+    <li><strong>physics_track:</strong> Physics state changes (gravity toggle, impulse forces)</li>
+    <li><strong>prop_track:</strong> Prop appearance, movement, transformation</li>
+    <li><strong>custom_track:</strong> Plugin-defined track types</li>
+  </ul>
+
+  <h3>15.3 Evaluation</h3>
+  <p>The timeline evaluator walks all tracks in parallel, sorted by time. At each frame, it determines which events are active and produces the action commands for that frame. Events can be one-shot, looping, or triggered by other events (when character A reaches position X, trigger event Y).</p>
+
+  <p>The timeline is <strong>not</strong> a real-time media timeline. It is a constraint system. Events define constraints on the world state. The engine resolves the constraint set into the minimal set of action commands needed to produce a valid state at each frame.</p>
+</div>
+
+<hr>
+
+<!-- SECTION 16 -->
+<div class="div">
+  <h1>16. Dialogue System</h1>
+
+  <p>The dialogue system handles text display, timing, and voiceover integration. It operates as a rendering stage after character and camera systems.</p>
+
+  <h3>16.1 Speech Bubbles</h3>
+  <ul>
+    <li>Bubble position: anchored to character's head position (configurable offset)</li>
+    <li>Bubble style: configurable per character (tail position, border width, background color, font)</li>
+    <li>Text wrapping: auto-wrap within bubble width with configurable max width</li>
+    <li>Typing animation: characters appear one-by-one at configurable speed</li>
+    <li>Bubble visibility: fade-in/fade-out with configurable lead/lag times</li>
+  </ul>
+
+  <h3>16.2 Subtitles</h3>
+  <p>The subtitle track is generated from the same dialogue data. Subtitles are rendered at the bottom of the viewport with optional drop shadow. Subtitle timing is exact to the frame (subtitle appears on the frame where dialogue starts).</p>
+
+  <h3>16.3 Voiceover</h3>
+  <p>Voiceover is handled through a provider interface. The engine calls <span class="code">tts_provider.synthesize(text, voice_id) → audio_buffer</span> and attaches the result to the output video. Multiple providers can be registered (system TTS, edge-tts, ElevenLabs, custom). The voiceover call is the only part of the rendering pipeline that may be nondeterministic — it is isolated from the frame rendering path. The video renders first; audio is mixed in as a post-process.</p>
+
+  <h3>16.4 Lip Movement (Future)</h3>
+  <p>For dialogue without voiceover, characters can show mouth movement synced to dialogue timing. A simple open-close animation modulated by syllable timing. The syllable timing is derived from the dialogue text using a phoneme estimation algorithm.</p>
+</div>
+
+<hr>
+
+<!-- SECTION 17 -->
+<div class="div">
+  <h1>17. Story Understanding Layer</h1>
+
+  <p>The story understanding layer (SUL) converts natural language or loosely structured input into the deterministic scene description that the engine consumes. This is the only non-deterministic layer. The SUL is replaceable and optional.</p>
+
+  <h3>17.1 Architecture</h3>
+  <pre>
+  User Input (text, script, outline)
+      │
+  ┌───▼─────────────────────────────────────────┐
+  │  Story Understanding Layer                    │
+  │                                              │
+  │  1. Script Parser                              │
+  │     - Scene segmentation                      │
+  │     - Character extraction                    │
+  │     - Action identification                   │
+  │     - Dialogue extraction                     │
+  │                                              │
+  │  2. Story Graph Builder                       │
+  │     - Event ordering (timeline construction) │
+  │     - Causality links (X happens because Y)   │
+  │     - Character arc tracking                  │
+  │                                              │
+  │  3. Cinematography Analyzer                   │
+  │     - Shot selection (wide, medium, close-up) │
+  │     - Camera movement suggestions             │
+  │     - Scene pacing calculations               │
+  │                                              │
+  │  4. Constraint Validator                      │
+  │     - Character consistency check             │
+  │     - Timeline coherence check               │
+  │     - Physics possibility check               │
+  └───────────────────────┬──────────────────────┘
+                          │
+  ┌───────────────────────▼──────────────────────┐
+  │  Structured Scene Description (deterministic)  │
+  │  → Timeline + Character Rigs + Scene Defs      │
+  └───────────────────────────────────────────────┘
+  </pre>
+
+  <h3>17.2 Story Understanding Approaches (Research)</h3>
+  <p><strong>Approach A: LLM-based (near-term).</strong> Use a large language model to parse input. The LLM receives a structured prompt with the allowed actions, character properties, and scene elements. It outputs JSON conforming to the timeline schema. This approach is fast to implement but nondeterministic — different LLM runs may produce different outputs. The user can lock a specific output by saving the LLM response as the scene description.</p>
+
+  <p><strong>Approach B: Constraint-based (long-term).</strong> Implement a story grammar system. The system defines valid story structures as a grammar. User input is parsed into the grammar, producing a story graph. The story graph is then compiled into the timeline. This approach is deterministic but requires significant linguistic engineering.</p>
+
+  <p><strong>Approach C: Hybrid.</strong> Use an LLM for initial parsing and story graph construction, then validate the output against a constraint system. The constraint system catches impossible timelines (character speaking after death, simultaneous contradictory actions, physics violations). The validated output is deterministic.</p>
+
+  <div class="box">
+    <strong>Recommendation:</strong> Start with Approach A (LLM-based) for rapid development. Research Approach C (hybrid with constraint validation) for Year 2-3. The SUL output format (structured scene description) is independent of the parsing method — the engine never knows whether the input came from AI, a human writer, or a script file.
+  </div>
+</div>
+
+<hr>
+
+<!-- SECTION 18 -->
+<div class="div">
+  <h1>18. AI Director Layer (Future)</h1>
+
+  <p>The AI Director Layer sits above the story understanding layer and acts as an autonomous cinematographer. It makes real-time decisions about camera placement, shot composition, scene pacing, and action selection based on story context.</p>
+
+  <h3>18.1 Director Responsibilities</h3>
+  <ul>
+    <li><strong>Shot selection:</strong> Choose camera angle and distance based on scene emotional content</li>
+    <li><strong>Pacing:</strong> Adjust scene duration based on narrative tension curve</li>
+    <li><strong>Action suggestion:</strong> Propose character actions that advance the story (not explicitly written)</li>
+    <li><strong>Dramatic emphasis:</strong> Slow motion, close-ups, camera shake during key moments</li>
+    <li><strong>Character blocking:</strong> Suggest character movement paths for visual composition</li>
+  </ul>
+
+  <h3>18.2 Implementation Strategy</h3>
+  <p>The AI Director is an Agent system operating on the scene graph and timeline before rendering. It produces a "director's cut" modification to the timeline. The original timeline is preserved; director modifications are a separate overlay that can be accepted, rejected, or edited.</p>
+
+  <p>The Director uses no generative AI for visual output. It generates structured commands — camera keyframes, action assignments, pacing adjustments — that the deterministic engine renders. This ensures that enabling or disabling the Director does not change the underlying engine behavior.</p>
+
+  <h3>18.3 Research Questions</h3>
+  <ul>
+    <li>How to define a "film grammar" as a set of rules the Director can follow?</li>
+    <li>Can shot selection be modeled as a constraint satisfaction problem?</li>
+    <li>What is the minimal set of camera positions that can tell any story?</li>
+    <li>How to evaluate Director quality objectively (not through user surveys)?</li>
+  </ul>
+</div>
+
+<hr>
+
+<!-- SECTION 19 -->
+<div class="div">
+  <h1>19. Rendering Infrastructure</h1>
+
+  <p>The rendering infrastructure is the distributed system that converts the engine's output into final video files. It is designed to scale from a single laptop to a render farm with hundreds of nodes.</p>
+
+  <h3>19.1 Architecture</h3>
+  <pre>
+  Client (submits job)
+      │
+  ┌───▼─────────────────────┐
+  │  Job Queue (Redis/AMQP)  │
+  └───┬─────────────────────┘
+      │
+  ┌───▼─────────────────────┐
+  │  Job Scheduler            │
+  │  - Dependency resolution  │
+  │  - Frame distribution     │
+  │  - Priority management    │
+  └───┬─────────────────────┘
+      │
+  ┌───▼───────────────────────┐
+  │  Worker Pool                │
+  │  ┌─────────┐ ┌─────────┐  │
+  │  │ Worker1 │ │ Worker2 │… │
+  │  │ render  │ │ render  │  │
+  │  │ frames  │ │ frames  │  │
+  │  │ 0-99    │ │ 100-199 │  │
+  │  └─────────┘ └─────────┘  │
+  └───────────┬───────────────┘
+              │
+  ┌───────────▼───────────────┐
+  │  Output Assembly            │
+  │  - Frame concatenation      │
+  │  - Audio mixing             │
+  │  - ffmpeg encode            │
+  │  - Upload to storage        │
+  └─────────────────────────────┘
+  </pre>
+
+  <h3>19.2 Render Farm Design</h3>
+  <p>StickFrame's distributed rendering is inspired by OpenCue (open-source render farm manager by Sony Pictures Imageworks) and sqi (modern distributed render farm). Each worker is a stateless process that receives a frame range and scene snapshot, renders frames, and returns them to the assembler.</p>
+
+  <p>Workers communicate via a message queue (Redis Streams or RabbitMQ). The scheduler tracks frame completion and handles retries. If a worker fails, its frames are reassigned to another worker. The output assembler collects completed frames, verifies they match the expected hash, and concatenates them with ffmpeg.</p>
+
+  <h3>19.3 Reference: OpenCue</h3>
+  <p>OpenCue (Apache 2.0, Python) is an open-source render farm manager used in VFX production. Its architecture includes: CueBot (job management), CueGUI (job monitoring), RQD (render queue daemon on each node), and a PostgreSQL-backed database for job state. StickFrame's worker system follows OpenCue's job/frame/layer abstraction but is simplified for 2D rendering (no 3D scene loading, no software licensing).</p>
+</div>
+
+<hr>
+
+<!-- SECTION 20 -->
+<div class="div">
+  <h1>20. Performance Strategy</h1>
+
+  <p>Performance targets are defined per frame, per scene, and per project. The engine is designed for predictable performance — worst-case render time should be estimable from input size.</p>
+
+  <h3>20.1 Frame-Level Performance</h3>
+  <table>
+    <tr><th>Operation</th><th>Target (single char, no effects)</th><th>Budget</th></tr>
+    <tr><td>Scene graph traversal</td><td>0.1 ms</td><td>&lt; 1%</td></tr>
+    <tr><td>Timeline evaluation</td><td>0.05 ms</td><td>&lt; 0.5%</td></tr>
+    <tr><td>Animation interpolation</td><td>0.02 ms per character</td><td>&lt; 0.2%</td></tr>
+    <tr><td>Rig solving</td><td>0.03 ms per character</td><td>&lt; 0.3%</td></tr>
+    <tr><td>Physics simulation</td><td>0.5 ms (fixed step)</td><td>~5%</td></tr>
+    <tr><td>Draw command generation</td><td>0.1 ms</td><td>~1%</td></tr>
+    <tr><td>Pillow rendering (720p)</td><td>5-15 ms</td><td>~85%</td></tr>
+    <tr><td>ffmpeg encode (per frame)</td><td>&lt; 1 ms (batch amortized)</td><td>&lt; 1%</td></tr>
+  </table>
+
+  <h3>20.2 Optimization Strategies</h3>
+  <ul>
+    <li><strong>Frame caching:</strong> Cache rendered frames keyed by their dependency hash. If a frame's dependencies haven't changed, return the cached image. This makes incremental edits nearly instant.</li>
+    <li><strong>Draw command batching:</strong> Group draw commands by type and Z-layer to minimize render state changes.</li>
+    <li><strong>Region invalidation:</strong> Only re-render regions of the frame that changed. If only a character's arm moved, only the pixels covered by that character's bounding box need updating.</li>
+    <li><strong>Parallel frame rendering:</strong> Frames are independent — render multiple frames concurrently using a thread pool or multiprocessing pool.</li>
+    <li><strong>Lossy preview mode:</strong> Render at 1/2 or 1/4 resolution during development. The same frame commands work at any resolution.</li>
+    <li><strong>Sub-frame compositing:</strong> Characters on different Z-layers can be rendered in parallel and composited.</li>
+  </ul>
+
+  <h3>20.3 Memory Management</h3>
+  <p>The engine streams frames to disk during rendering rather than holding all frames in memory. For a 90-minute movie at 30 fps (162,000 frames), each 720p PNG is ~200 KB — total 32 GB uncompressed. The engine writes frames to a temporary directory and pipes them into ffmpeg as they complete. The memory footprint stays under 1 GB regardless of total frame count.</p>
+</div>
+
+<hr>
+
+<!-- SECTION 21 -->
+<div class="div">
+  <h1>21. Storage Architecture</h1>
+
+  <h3>21.1 Project Format (.sfproj)</h3>
+  <p>Each StickFrame project is a directory containing:</p>
+  <pre>
+  project.sfproj/
+  ├── manifest.json          # Project metadata, version, author
+  ├── scene/                  # Scene definitions
+  │   ├── scene_001.json
+  │   ├── scene_002.json
+  │   └── ...
+  ├── timeline/              # Timeline files (may reference external scene files)
+  │   ├── main.json
+  │   └── ...
+  ├── characters/            # Character rig and appearance definitions
+  │   ├── hero.json
+  │   ├── villain.json
+  │   └── ...
+  ├── actions/               # Custom action definitions (built-in actions are engine-internal)
+  │   ├── custom_dance.json
+  │   └── ...
+  ├── assets/                # External assets (images, audio, fonts)
+  │   ├── backgrounds/
+  │   ├── sfx/
+  │   ├── music/
+  │   └── fonts/
+  ├── plugins/               # Project-specific plugins
+  │   └── ...
+  └── output/                # Rendered output
+      ├── output.mp4
+      └── frames/            # Individual frame PNGs (if requested)
+  </pre>
+
+  <p>The project format is a directory on disk. No binary blobs — all scene data is JSON. Assets are referenced by hash and stored in a content-addressable store. This enables deduplication (same asset used in multiple scenes stored once) and integrity verification (detect corrupted or modified assets).</p>
+
+  <h3>21.2 Content-Addressable Asset Store</h3>
+  <p>Assets are stored by SHA-256 hash of their content. References use the hash: <span class="code">"background": "sha256:a1b2c3d4..."</span>. The asset store maps hashes to files. Multiple scenes referencing the same asset share one copy. The store supports local disk, S3-compatible, and custom backends.</p>
+
+  <h3>21.3 Caching Layer</h3>
+  <p>The cache stores rendered frames, intermediate computations (solved rig positions, physics simulation results), and compiled action data. The cache is keyed by a hash of input dependencies (scene state + frame number + engine version). Cache entries are invalidated when:</p>
+  <ul>
+    <li>Any component in the dependency changed</li>
+    <li>The engine version changed (cached output may differ)</li>
+    <li>Cache TTL expired (configurable, default 30 days)</li>
+  </ul>
+  <p>The cache uses SQLite for metadata (mapping keys to file locations) and disk/S3 for storage.</p>
+</div>
+
+<hr>
+
+<!-- SECTION 22 -->
+<div class="div">
+  <h1>22. Networking</h1>
+
+  <p>Networking is limited to the orchestration layer. The engine itself has no network dependencies. The network architecture supports:</p>
+
+  <h3>22.1 Job Submission &amp; Management</h3>
+  <p>The REST API accepts project submissions, returns a job ID, and provides status polling endpoints. Jobs are processed on the server's worker pool. The API design follows OpenCue's job model but simplified for StickFrame's use case.</p>
+
+  <p>Endpoints:</p>
+  <ul>
+    <li><span class="code">POST /v1/jobs</span> — submit a project for rendering</li>
+    <li><span class="code">GET /v1/jobs/{id}</span> — get job status, progress, estimated completion</li>
+    <li><span class="code">GET /v1/jobs/{id}/frames/{range}</span> — download rendered frames</li>
+    <li><span class="code">DELETE /v1/jobs/{id}</span> — cancel a running job</li>
+    <li><span class="code">GET /v1/jobs/{id}/log</span> — streaming log output</li>
+  </ul>
+
+  <h3>22.2 Worker Communication</h3>
+  <p>Workers communicate via a message queue. The protocol is:</p>
+  <ol>
+    <li>Scheduler publishes frame assignment to queue</li>
+    <li>Worker picks up assignment, downloads scene snapshot</li>
+    <li>Worker renders frames, uploads results</li>
+    <li>Worker publishes completion message</li>
+    <li>Scheduler collects all frames, triggers assembly</li>
+  </ol>
+
+  <p>WebSocket connections provide real-time progress updates for clients. The progress stream includes per-frame timestamps, worker ID, and any warnings.</p>
+</div>
+
+<hr>
+
+<!-- SECTION 23 -->
+<div class="div">
+  <h1>23. Security</h1>
+
+  <h3>23.1 Plugin Sandboxing</h3>
+  <p>Plugins execute in a sandboxed environment. The sandbox restricts filesystem access to the project directory, network access (disabled by default), and execution of external binaries (requires manifest permissions). The sandbox is implemented using OS-level process isolation (containers or subprocess with restricted seccomp profiles).</p>
+
+  <h3>23.2 Scene File Validation</h3>
+  <p>All scene input is validated against a schema before entering the engine. Malformed input is rejected with a machine-readable error. This prevents injection attacks through specially crafted scene files (the asset store checks hash integrity before loading).</p>
+
+  <h3>23.3 Render Output Integrity</h3>
+  <p>Each frame file includes a content hash. The output assembler verifies that received frames match expected hashes before concatenation. This detects transmission errors and ensures output integrity even with distributed rendering.</p>
+
+  <h3>23.4 No Execution from Input</h3>
+  <p>The engine never executes code from project files. Actions are defined as data (JSON keyframes), not scripts. Plugin code must be explicitly installed and loaded — a project file cannot introduce new plugin code. This prevents arbitrary code execution through project files.</p>
+</div>
+
+<hr>
+
+<!-- SECTION 24 -->
+<div class="div">
+  <h1>24. Plugin Architecture</h1>
+
+  <p>The plugin architecture follows the Microkernel pattern (also called Plugin Architecture). The engine kernel is minimal — it provides scene graph management, timeline evaluation, action player, and rig solver. Everything else is a plugin.</p>
+
+  <h3>24.1 Plugin Categories</h3>
+  <table>
+    <tr><th>Category</th><th>Extension Point</th><th>Examples</th></tr>
+    <tr><td>Renderer</td><td>Pipeline stage hook</td><td>Software renderer (built-in), GPU renderer, SVG renderer, vector output</td></tr>
+    <tr><td>Importer</td><td>Asset loading hook</td><td>.stk (Pivot) importer, Spine JSON importer, DragonBones importer, Blender export import</td></tr>
+    <tr><td>Exporter</td><td>Output format hook</td><td>MP4 (built-in), GIF, WebM, PNG sequence, PDF flipbook, API post</td></tr>
+    <tr><td>Physics</td><td>Physics solver hook</td><td>Built-in 2D physics, Box2D wrapper, custom solver</td></tr>
+    <tr><td>Effect</td><td>Render stage effect hook</td><td>Blur, glow, shadow, chromakey, color grading, watercolor filter</td></tr>
+    <tr><td>Generator</td><td>Asset/action generation hook</td><td>Procedural background generator, procedural action generator, TTS voiceover</td></tr>
+    <tr><td>Analysis</td><td>Post-render analysis hook</td><td>Scene complexity estimator, render time predictor, visual diff checker</td></tr>
+  </table>
+
+  <h3>24.2 Plugin Interface</h3>
+  <p>Each plugin is a Python package with a standard entry point. The engine discovers plugins by scanning registered paths (project-local, user-global, system-global). Plugins declare their capabilities in a manifest:</p>
+
+  <pre>
+  manifest = {
+      "name": "watercolor_effect",
+      "version": "1.0.0",
+      "type": "effect",
+      "hooks": ["render_stage_4"],
+      "dependencies": {"pillow": ">=10.0"},
+      "sandbox_permissions": ["filesystem:project_only"],
+      "settings": {"brush_size": {"type": "int", "default": 3}}
+  }
+  </pre>
+
+  <p>The engine calls the plugin at the specified hook point with the current draw command list. The plugin modifies, adds, or removes commands. Multiple plugins can hook the same stage; they execute in priority order (defined in the manifest).</p>
+</div>
+
+<hr>
+
+<!-- SECTION 25 -->
+<div class="div">
+  <h1>25. API Strategy</h1>
+
+  <p>The StickFrame API provides programmatic access to the rendering pipeline. It is designed for three use cases: integration with external tools, automated batch rendering, and custom frontend development.</p>
+
+  <h3>25.1 API Versions</h3>
+  <table>
+    <tr><th>Version</th><th>Status</th><th>Features</th></tr>
+    <tr><td>v1 (alpha)</td><td>Local Python API</td><td>Direct Python imports. <span class="code">from stickframe import Scene, render</span>. Sync API for small jobs.</td></tr>
+    <tr><td>v2 (beta)</td><td>REST API</td><td>Async job submission. Progress polling. Result download. Stateless workers.</td></tr>
+    <tr><td>v3 (stable)</td><td>gRPC + REST</td><td>gRPC for high-throughput job submission (protocol buffers for scene data). REST for status and management.</td></tr>
+  </table>
+
+  <h3>25.2 Python SDK</h3>
+  <pre>
+  from stickframe import Scene, Character, Action, render
+
+  scene = Scene(width=1920, height=1080, fps=30)
+  hero = Character("hero", rig="bipedal")
+  hero.appearance = {"head_color": "red", "body_color": "blue"}
+  scene.add_character(hero)
+
+  scene.timeline.add_event(0.0, hero, "idle")
+  scene.timeline.add_event(2.0, hero, "walk", direction="right")
+  scene.timeline.add_event(4.0, hero, "jump")
+
+  result = render(scene, output="output.mp4")
+  # result contains: output_path, render_time, frame_count, checksum
+  </pre>
+
+  <h3>25.3 gRPC Service Definition (v3)</h3>
+  <p>The Scene and Timeline data structures map to Protocol Buffer messages. The gRPC service defines RPCs for job submission, status streaming, and result retrieval. This enables clients in any language (Go, Rust, TypeScript, C++) to submit rendering jobs.</p>
+</div>
+
+<hr>
+
+<!-- SECTION 26 -->
+<div class="div">
+  <h1>26. Testing Strategy</h1>
+
+  <h3>26.1 Unit Testing</h3>
+  <ul>
+    <li><strong>Scene graph operations:</strong> Test entity creation, parent-child relationships, transform resolution, component queries</li>
+    <li><strong>Rig solver:</strong> Test joint position calculation for known angle sets. Compare against pre-computed ground truth.</li>
+    <li><strong>Action player:</strong> Test keyframe interpolation, looping, blending, transition timing</li>
+    <li><strong>Timeline evaluator:</strong> Test event ordering, parallel track resolution, trigger-based events</li>
+    <li><strong>Camera system:</strong> Test viewport transform calculation, target tracking, shake generation</li>
+    <li><strong>Physics solver:</strong> Test gravity, collision, projectile motion against analytical solutions</li>
+  </ul>
+
+  <h3>26.2 Deterministic Rendering Tests</h3>
+  <p>The engine includes a <strong>rendering test suite</strong> that takes known scene files, renders them, and compares output hashes against stored reference hashes. Any change that alters output (intentional or not) is detected. This is the primary regression prevention mechanism.</p>
+
+  <p>Test scenes cover: single character, multiple characters, camera movement, action transitions, dialogue rendering, physics interactions, scene transitions, edge cases (empty scene, single frame, maximum characters).</p>
+
+  <h3>26.3 Performance Tests</h3>
+  <p>Benchmark scenes track per-frame render time, peak memory usage, and total render time. Performance regressions are caught by comparing against baseline measurements. The benchmark suite includes scenes at various complexity levels (1, 10, 50, 200 characters).</p>
+
+  <h3>26.4 Integration Tests</h3>
+  <ul>
+    <li>Full pipeline test: script → render → verify output hash</li>
+    <li>Plugin API test: install mock plugin, verify hook calls</li>
+    <li>Import/export round-trip test: scene → export → reimport → verify identity</li>
+    <li>Distributed rendering test: render same scene on 1 worker vs 10 workers, verify hashes match</li>
+    <li>Cross-platform test: render on Linux, macOS, Windows — verify hashes match</li>
+  </ul>
+</div>
+
+<hr>
+
+<!-- SECTION 27 -->
+<div class="div">
+  <h1>27. Scalability</h1>
+
+  <p>StickFrame's architecture scales along three axes: project complexity, rendering parallelism, and system deployment.</p>
+
+  <h3>27.1 Project Complexity Scaling</h3>
+  <table>
+    <tr><th>Metric</th><th>Short Clip (30s)</th><th>Episode (10min)</th><th>Feature (90min)</th></tr>
+    <tr><td>Frames</td><td>900</td><td>18,000</td><td>162,000</td></tr>
+    <tr><td>Characters</td><td>1-3</td><td>5-15</td><td>20-100</td></tr>
+    <tr><td>Scenes</td><td>1</td><td>10-30</td><td>50-200</td></tr>
+    <tr><td>Timeline events</td><td>10-50</td><td>200-2,000</td><td>2,000-20,000</td></tr>
+    <tr><td>Asset size</td><td>&lt; 10 MB</td><td>100-500 MB</td><td>1-10 GB</td></tr>
+    <tr><td>Render time (1 core)</td><td>~1 min</td><td>~1 hour</td><td>~10 hours</td></tr>
+    <tr><td>Render time (100 cores)</td><td>~1 sec</td><td>~36 sec</td><td>~6 min</td></tr>
+  </table>
+
+  <h3>27.2 Rendering Parallelism</h3>
+  <p>Frame rendering is embarrassingly parallel. Each frame is independent. With 100 workers, a 90-minute feature (162,000 frames) renders in ~6 minutes (200 frames per worker, ~5-15 ms per frame). The scheduler distributes frames in chunks to minimize queue overhead.</p>
+
+  <p>Worker scaling is linear — 2x workers = 2x throughput, limited only by the bottleneck of the output assembler. The assembler batches completed frames for efficient ffmpeg encoding.</p>
+
+  <h3>27.3 Storage Scaling</h3>
+  <p>The content-addressable asset store deduplicates across projects. For a studio producing 100 projects with shared asset libraries, storage scales logarithmically — common assets (backgrounds, character templates, SFX) are stored once. Only unique assets consume additional space.</p>
+</div>
+
+<hr>
+
+<!-- SECTION 28 -->
+<div class="div">
+  <h1>28. Risks</h1>
+
+  <table>
+    <tr><th>Risk</th><th>Severity</th><th>Probability</th><th>Mitigation</th></tr>
+    <tr>
+      <td>Physics determinism across platforms</td>
+      <td>High</td>
+      <td>Medium</td>
+      <td>Fixed-point math library; cross-platform CI with hash verification; physics validation assertions
+    </td></tr>
+    <tr>
+      <td>Pillow rendering bottleneck at high resolution</td>
+      <td>Medium</td>
+      <td>Medium</td>
+      <td>GPU renderer plugin path; resolution-independent draw commands; multi-threaded frame rendering</td>
+    </tr>
+    <tr>
+      <td>Timeline complexity for feature-length projects</td>
+      <td>Medium</td>
+      <td>Low</td>
+      <td>Hierarchical timeline (scenes within episodes within acts); lazy loading of scene data</td>
+    </tr>
+    <tr>
+      <td>Plugin sandbox escape</td>
+      <td>High</td>
+      <td>Low</td>
+      <td>OS-level process isolation; seccomp profile; filesystem restrictions; manual plugin review process</td>
+    </tr>
+    <tr>
+      <td>LLM nondeterminism in story understanding</td>
+      <td>Medium</td>
+      <td>High</td>
+      <td>Validate LLM output against schema; user can save/lock scene description; engine ignores SUL existence</td>
+    </tr>
+    <tr>
+      <td>Cache invalidation complexity</td>
+      <td>Medium</td>
+      <td>Medium</td>
+      <td>Explicit dependency tracking per frame; cache key includes engine version; cache miss is always safe</td>
+    </tr>
+    <tr>
+      <td>Distributed rendering network bottleneck</td>
+      <td>Low</td>
+      <td>Medium</td>
+      <td>Frame data is small (~200 KB per 720p PNG); scene definitions are tiny (KB); worker pulls once, renders many</td>
+    </tr>
+  </table>
+</div>
+
+<hr>
+
+<!-- SECTION 29 -->
+<div class="div">
+  <h1>29. Research Areas</h1>
+
+  <p>These areas require investigation before or during implementation. Each has open questions that need experimental validation.</p>
+
+  <h3>29.1 Animation Quality</h3>
+  <ul>
+    <li><strong>Inverse kinematics:</strong> Can IK solvers produce natural-looking stickman poses from endpoint targets (e.g., "hand touches point X")? Research FABRIK (Forward And Backward Reaching Inverse Kinematics) algorithm for 2D bone chains.</li>
+    <li><strong>Procedural action generation:</strong> Can walk cycles, run cycles, and other periodic actions be generated procedurally instead of hand-authored? Research Fourier-series-based gait generation.</li>
+    <li><strong>Motion matching:</strong> For Year 3-4, can we use a database of pre-authored motion clips that the engine selects and blends based on context? Research Unreal Engine's motion matching system.</li>
+    <li><strong>Tweening quality:</strong> What is the minimum set of easing functions needed for natural-looking stickman motion? Research animation curves from Spine and DragonBones.</li>
+  </ul>
+
+  <h3>29.2 Story Understanding</h3>
+  <ul>
+    <li><strong>Story grammar:</strong> Can story structure be formalized as a grammar (e.g., three-act structure, hero's journey) for deterministic story parsing? Research story grammars from computational narratology.</li>
+    <li><strong>Character consistency:</strong> How to maintain character personality across a long timeline without explicit programming? Research personality models for virtual characters.</li>
+    <li><strong>Dialogue-to-action mapping:</strong> Can dialogue lines be automatically mapped to matching character actions? Research gesture generation from text.</li>
+  </ul>
+
+  <h3>29.3 Rendering</h3>
+  <ul>
+    <li><strong>Software vs GPU:</strong> At what scene complexity does GPU rendering become necessary? What is the cross-over point in terms of characters, effects, and resolution?</li>
+    <li><strong>Style transfer:</strong> Can stickman output be post-processed into different visual styles (pencil sketch, watercolor, pixel art) without re-rendering? Research neural style transfer for line art.</li>
+    <li><strong>Vector output:</strong> Can the renderer output SVG/vector graphics for infinitely scalable animation? Research SVG animation export for stickman scenes.</li>
+  </ul>
+
+  <h3>29.4 Distributed Systems</h3>
+  <ul>
+    <li><strong>Optimal chunk size:</strong> What is the optimal number of frames per worker assignment? Too few = high queue overhead, too many = load imbalance. Research dynamic chunk sizing.</li>
+    <li><strong>Worker preemption:</strong> How to handle a worker that disconnects mid-job? Current design: reassign its frames. Research checkpointing for long-frame renders.</li>
+    <li><strong>Hybrid cloud/bare-metal scaling:</strong> Can workers dynamically burst to cloud instances when local pool is saturated? Research Kubernetes-based worker autoscaling.</li>
+  </ul>
+
+  <h3>29.5 Physics</h3>
+  <ul>
+    <li><strong>Deterministic physics across platforms:</strong> Can we achieve byte-identical physics simulation across different CPU architectures? Research fixed-point math vs IEEE 754 compliance.</li>
+    <li><strong>Hybrid animation/physics:</strong> Can a character partially follow animation and partially be physics-driven (e.g., animated upper body, physics-simulated lower body)? Research constrained physics blending.</li>
+  </ul>
+</div>
+
+<hr>
+
+<!-- SECTION 30 -->
+<div class="div">
+  <h1>30. Five-Year Engineering Roadmap</h1>
+
+  <h3>Year 1: Foundation (Months 1-12)</h3>
+  <table>
+    <tr><th>Quarter</th><th>Focus</th><th>Deliverables</th></tr>
+    <tr><td>Q1</td><td>Core engine kernel</td><td>Scene graph, timeline evaluator, action player, rig solver. Single stickman, 10 actions, script input, MP4 export. Deterministic rendering verified.</td></tr>
+    <tr><td>Q2</td><td>Character system</td><td>Multiple characters, appearance system, action blending, action layering. 30 actions. Prop system. Background rendering.</td></tr>
+    <tr><td>Q3</td><td>Camera &amp; effects</td><td>Camera system (pan, zoom, follow, shake). Scene transitions. Particle system. Dialogue/subtitle rendering.</td></tr>
+    <tr><td>Q4</td><td>Plugin system v1</td><td>Plugin API (render hooks, effect hooks). Plugin sandbox. First plugin marketplace preview. Python SDK v1. API v1 (local).</td></tr>
+  </table>
+
+  <h3>Year 2: Scale &amp; Distribution (Months 13-24)</h3>
+  <table>
+    <tr><th>Quarter</th><th>Focus</th><th>Deliverables</th></tr>
+    <tr><td>Q1</td><td>Distributed rendering</td><td>Job queue (Redis), worker pool, job scheduler. Output assembler. REST API v2. Render farm deployment guide.</td></tr>
+    <tr><td>Q2</td><td>Physics system</td><td>Deterministic 2D physics engine. Collision detection. Ragdoll physics. Hybrid animation/physics characters.</td></tr>
+    <tr><td>Q3</td><td>Import/export ecosystem</td><td>Pivot .stk import. Spine JSON import. DragonBones import. GIF/WebM export. Plugin importers/exporters.</td></tr>
+    <tr><td>Q4</td><td>Performance optimization</td><td>Frame caching. Region invalidation. Multi-threaded rendering. Vector output (SVG) research. GPU renderer prototype.</td></tr>
+  </table>
+
+  <h3>Year 3: Intelligence (Months 25-36)</h3>
+  <table>
+    <tr><th>Quarter</th><th>Focus</th><th>Deliverables</th></tr>
+    <tr><td>Q1</td><td>Story Understanding Layer</td><td>LLM-based script parser (Approach A). Scene segmentation. Character extraction. Action identification. Timeline construction from natural language.</td></tr>
+    <tr><td>Q2</td><td>Story grammar engine</td><td>Hybrid approach (Approach C). Constraint validator for story consistency. Character arc tracking. Automated pacing.</td></tr>
+    <tr><td>Q3</td><td>Physics &amp; quality improvements</td><td>Inverse kinematics (FABRIK). Procedural action generation research. Motion matching prototype. Animation quality benchmarking.</td></tr>
+    <tr><td>Q4</td><td>Collaborative editing</td><td>Project synchronization (CRDT-based). Multi-user editing. Comment/annotation system. Version history.</td></tr>
+  </table>
+
+  <h3>Year 4: Autonomy (Months 37-48)</h3>
+  <table>
+    <tr><th>Quarter</th><th>Focus</th><th>Deliverables</th></tr>
+    <tr><td>Q1</td><td>AI Director Layer</td><td>Agent-based cinematographer. Automated shot selection. Scene pacing optimization. Director's cut overlay system.</td></tr>
+    <tr><td>Q2</td><td>GPU rendering</td><td>Production GPU renderer (OpenGL/Vulkan). Drop-in replacement for software renderer. Same draw commands, different backend.</td></tr>
+    <tr><td>Q3</td><td>Style &amp; effects</td><td>Style transfer pipeline. Custom visual effects ecosystem. Advanced particle systems. Procedural backgrounds.</td></tr>
+    <tr><td>Q4</td><td>Enterprise features</td><td>SSO/SAML integration. Team management. Usage analytics. White-label option. On-prem deployment.</td></tr>
+  </table>
+
+  <h3>Year 5: Ecosystem (Months 49-60)</h3>
+  <table>
+    <tr><th>Quarter</th><th>Focus</th><th>Deliverables</th></tr>
+    <tr><td>Q1</td><td>Plugin marketplace</td><td>Public plugin registry. Plugin publishing workflow. Revenue sharing. Plugin analytics. Plugin certification program.</td></tr>
+    <tr><td>Q2</td><td>gRPC API &amp; SDK expansion</td><td>API v3 (gRPC + streaming). SDKs for TypeScript, Go, Rust. Webhook system for render completion events.</td></tr>
+    <tr><td>Q3</td><td>Integration ecosystem</td><td>Blender addon. After Effects plugin. Unity integration. Unreal integration. n8n/node for workflow automation.</td></tr>
+    <tr><td>Q4</td><td>Platform stabilization</td><td>Comprehensive documentation. Performance benchmarks published. Certification suite for plugin developers. Platform reaches steady state.</td></tr>
+  </table>
+</div>
+
+<hr>
+
+<div class="section" style="text-align:center; color:#666; font-size:9pt;">
+  <p>StickFrame Animation Operating System — Engineering Blueprint v2</p>
+  <p>Prepared by Hermes (Principal Research Engineer) for the Chief Architect | July 2026</p>
+  <p>Research tools: SearXNG · Open Notebook · Whoogle · Crawl4AI</p>
+  <p>Reference: Godot Engine architecture, Bevy ECS system, OpenCue render farm, Nucleus VFX plugin system, Spine/DragonBones skeletal animation patterns</p>
+  <p><strong>CONFIDENTIAL — ENGINEERING INTERNAL</strong></p>
+</div>
+
+</body>
+</html>
