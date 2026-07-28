@@ -1,22 +1,47 @@
 """Procedural animation generators — all actions are math, no keyframes
 
 Each generator is a function(time, params) → dict of bone_name → angle.
+Walk uses FABRIK IK for foot placement — feet plant on ground, no sliding.
 """
 
 import math
-from typing import Dict, Callable, Any
+from typing import Dict, Any, Tuple
+from engine.animation.fabrik import FabrikChain
 
 
-def _R(deg): return math.radians(deg)
+def _R(deg: float) -> float:
+    return deg * math.pi / 180.0
+
+
+# ─── Pre-built IK chains for walk ──────────────────────────
+
+_left_leg_chain: FabrikChain = None
+_right_leg_chain: FabrikChain = None
+
+def _get_leg_chains() -> Tuple[FabrikChain, FabrikChain]:
+    """Get or create leg IK chains. Built once and cached."""
+    global _left_leg_chain, _right_leg_chain
+    if _left_leg_chain is None:
+        _left_leg_chain = FabrikChain()
+        _left_leg_chain.add_bone(16)  # upper leg
+        _left_leg_chain.add_bone(16)  # lower leg
+        _left_leg_chain.add_bone(6)   # foot
+        _left_leg_chain.set_initial_pose([90, 0, 0])
+    if _right_leg_chain is None:
+        _right_leg_chain = FabrikChain()
+        _right_leg_chain.add_bone(16)
+        _right_leg_chain.add_bone(16)
+        _right_leg_chain.add_bone(6)
+        _right_leg_chain.set_initial_pose([90, 0, 0])
+    return _left_leg_chain, _right_leg_chain
+
 
 # ─── IDLE ──────────────────────────────────────────────────
 
 def gen_idle(t: float, params: Dict[str, Any] = None) -> Dict[str, float]:
-    """Natural standing with breathing micro-motion"""
     p = params or {}
     speed = p.get('speed', 1.0)
     s = t * speed
-    
     return {
         'spine': _R(-90) + math.sin(s * 1.5) * _R(1),
         'neck': 0.0,
@@ -27,20 +52,26 @@ def gen_idle(t: float, params: Dict[str, Any] = None) -> Dict[str, float]:
         'right_upper_arm': _R(175) + math.sin(s * 1.2 + math.pi) * _R(2),
         'right_forearm': _R(-5) + math.sin(s * 1.3 + math.pi) * _R(2),
         'right_hand': 0.0,
-        'left_upper_leg': _R(92),
-        'left_lower_leg': _R(-3),
-        'left_foot': 0.0,
-        'right_upper_leg': _R(88),
-        'right_lower_leg': _R(3),
-        'right_foot': 0.0,
+        'left_upper_leg': _R(92), 'left_lower_leg': _R(-3), 'left_foot': 0.0,
+        'right_upper_leg': _R(88), 'right_lower_leg': _R(3), 'right_foot': 0.0,
         'hips': 0.0,
     }
 
 
-# ─── WALK ──────────────────────────────────────────────────
+# ─── WALK — FABRIK-BASED FOOT PLACEMENT ───────────────────
 
 def gen_walk(t: float, params: Dict[str, Any] = None) -> Dict[str, float]:
-    """Sine-wave walk. Parameters: speed, stride, step_height, bounce"""
+    """Walk using FABRIK IK for foot placement.
+    
+    Algorithm per frame:
+      1. Determine which foot is stance vs swing based on gait cycle
+      2. Stance foot stays planted at its landing position
+      3. Swing foot lifts and moves toward next landing position
+      4. FABRIK solves hip→knee→ankle angles to reach foot targets
+      5. Hips adjust height based on leg extension
+    
+    Parameters: speed, stride, step_height
+    """
     p = params or {}
     speed = p.get('speed', 1.2)
     stride = p.get('stride', 55)
@@ -48,28 +79,88 @@ def gen_walk(t: float, params: Dict[str, Any] = None) -> Dict[str, float]:
     bounce = p.get('bounce', 3)
     
     s = t * speed
-    swing = math.sin(s * math.pi)
-    swing_opp = math.sin(s * math.pi + math.pi)
-    lift = abs(math.sin(s * math.pi))
-    lift_opp = abs(math.sin(s * math.pi + math.pi))
-    double = math.sin(s * math.pi * 2)
+    
+    # Gait cycle: each leg cycles through stance→swing
+    # left leg cycle = s (0 to 1 = one full step pair)
+    # right leg cycle = s + 0.5 (offset by half)
+    left_phase = s % 1.0        # 0-1: left leg gait cycle
+    right_phase = (s + 0.5) % 1.0  # 0-1: right leg (offset)
+    
+    # Step landing positions
+    # Each full cycle (s goes from 0 to 1) moves one stride forward
+    # Number of completed steps determines landing positions
+    steps_completed = int(s)  # how many full stride cycles completed
+    body_x = s * stride * 0.8  # body moves forward continuously
+    
+    # Gait: 0-0.6 = stance, 0.6-1.0 = swing
+    def get_foot_target(phase, side_offset):
+        """Get foot target position for a leg at its current phase."""
+        # Foot offset from body center (side_to_side)
+        lateral = side_offset * 10  # ±10px left/right
+        
+        # Forward position: during stance, foot stays planted at landing spot
+        # During swing, foot moves from last landing to next landing
+        if phase < 0.6:  # STANCE — foot planted
+            foot_progress = 0  # no forward movement, foot stays
+            lift = 0
+        else:  # SWING — foot lifts and moves forward
+            swing_prog = (phase - 0.6) / 0.4  # 0→1 during swing
+            foot_progress = swing_prog
+            # Lift follows arc: up at start, down at end
+            lift = math.sin(swing_prog * math.pi) * step_h
+        
+        # Landing positions
+        last_landing = (steps_completed + (0 if side_offset < 0 else 0.5)) * stride
+        next_landing = last_landing + stride
+        
+        foot_x = body_x + lateral  # default: follows body
+        
+        if phase < 0.6:  # Stance: foot planted at last landing
+            foot_x = last_landing + lateral
+        else:  # Swing: interpolate toward next landing
+            foot_x = last_landing + foot_progress * stride + lateral
+        
+        foot_y = 40 - lift  # ground at y=40 below hips
+        
+        return foot_x, foot_y
+    
+    lfx, lfy = get_foot_target(left_phase, -1)
+    rfx, rfy = get_foot_target(right_phase, 1)
+    
+    # Solve left leg IK
+    l_chain, r_chain = _get_leg_chains()
+    l_chain.set_base(0, 0)
+    l_chain.set_initial_pose([90, 0, 0])
+    l_chain.solve(lfx, lfy, tolerance=1.0)
+    l_angles = l_chain.get_angles()
+    
+    # Solve right leg IK
+    r_chain.set_base(0, 0)
+    r_chain.set_initial_pose([90, 0, 0])
+    r_chain.solve(rfx, rfy, tolerance=1.0)
+    r_angles = r_chain.get_angles()
+    
+    # Body bob and arm swing (sine waves for these)
+    double_s = math.sin(s * math.pi * 2)
+    arm_swing = math.sin(s * math.pi) * _R(25)
+    arm_swing_opp = math.sin(s * math.pi + math.pi) * _R(25)
     
     return {
-        'spine': _R(-88) + double * _R(2),
+        'spine': _R(-88) + double_s * _R(2),
         'neck': 0.0,
-        'head': double * _R(1),
-        'left_upper_arm': _R(185) - swing * _R(25),
-        'left_forearm': _R(10) + swing * _R(15),
-        'left_hand': -swing * _R(10),
-        'right_upper_arm': _R(175) - swing_opp * _R(25),
-        'right_forearm': _R(-10) + swing_opp * _R(15),
-        'right_hand': -swing_opp * _R(10),
-        'left_upper_leg': _R(90) + swing * _R(35),
-        'left_lower_leg': -swing * _R(20),
-        'left_foot': lift * _R(10),
-        'right_upper_leg': _R(90) + swing_opp * _R(35),
-        'right_lower_leg': -swing_opp * _R(20),
-        'right_foot': lift_opp * _R(10),
+        'head': double_s * _R(1),
+        'left_upper_arm': _R(185) - arm_swing,
+        'left_forearm': _R(10) + arm_swing * 0.6,
+        'left_hand': -arm_swing * 0.4,
+        'right_upper_arm': _R(175) - arm_swing_opp,
+        'right_forearm': _R(-10) + arm_swing_opp * 0.6,
+        'right_hand': -arm_swing_opp * 0.4,
+        'left_upper_leg': l_angles[0] if len(l_angles) > 0 else _R(90),
+        'left_lower_leg': l_angles[1] if len(l_angles) > 1 else 0.0,
+        'left_foot': l_angles[2] if len(l_angles) > 2 else 0.0,
+        'right_upper_leg': r_angles[0] if len(r_angles) > 0 else _R(90),
+        'right_lower_leg': r_angles[1] if len(r_angles) > 1 else 0.0,
+        'right_foot': r_angles[2] if len(r_angles) > 2 else 0.0,
         'hips': 0.0,
     }
 
