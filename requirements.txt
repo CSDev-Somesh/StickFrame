@@ -1,0 +1,5 @@
+# StickFrame Animation Engine
+# Deterministic text-to-stickman animation platform
+
+Pillow>=10.0
+numpy>=1.24
