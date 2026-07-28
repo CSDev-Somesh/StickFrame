@@ -46,10 +46,56 @@ class AnimationSystem:
             
             # Handle looping
             if clip.loop and anim.time >= clip.duration:
+                # Capture the end-of-cycle position value before looping
+                if clip.position_keyframes.get('x'):
+                    end_x = interpolate_keyframes(
+                        [(k.time, k.angle) for k in clip.position_keyframes['x']],
+                        clip.duration)
+                    anim._cycle_pos_x += end_x - anim._prev_pos_x
+                if clip.position_keyframes.get('y'):
+                    end_y = interpolate_keyframes(
+                        [(k.time, k.angle) for k in clip.position_keyframes['y']],
+                        clip.duration)
+                    anim._cycle_pos_y += end_y - anim._prev_pos_y
+                # Reset prev tracking for the new cycle
+                anim._prev_pos_x = 0.0
+                anim._prev_pos_y = 0.0
                 anim.time %= clip.duration
             
-            # Apply clip to skeleton
+            # Apply clip bone keyframes to skeleton
             apply_action_to_skeleton(skel, clip, anim.time)
+            
+            # Apply position keyframes — compute delta from previous frame
+            if clip.position_keyframes:
+                kfs_x = clip.position_keyframes.get('x')
+                kfs_y = clip.position_keyframes.get('y')
+                
+                t = anim.time
+                # For looping clips, sample within duration
+                if clip.loop and clip.duration > 0:
+                    t = anim.time % clip.duration
+                else:
+                    t = min(anim.time, clip.duration)
+                
+                current_x = interpolate_keyframes([(k.time, k.angle) for k in kfs_x], t) if kfs_x else 0
+                current_y = interpolate_keyframes([(k.time, k.angle) for k in kfs_y], t) if kfs_y else 0
+                
+                # Compute delta from last frame's position keyframe value
+                dx = current_x - anim._prev_pos_x
+                dy = current_y - anim._prev_pos_y
+                
+                anim.position_offset_x += dx
+                anim.position_offset_y += dy
+                
+                # Add any completed cycle accumulation
+                if anim._cycle_pos_x != 0 or anim._cycle_pos_y != 0:
+                    anim.position_offset_x += anim._cycle_pos_x
+                    anim.position_offset_y += anim._cycle_pos_y
+                    anim._cycle_pos_x = 0
+                    anim._cycle_pos_y = 0
+                
+                anim._prev_pos_x = current_x
+                anim._prev_pos_y = current_y
     
     def play(self, entity_id: int, anim_players: dict, clip_name: str) -> None:
         """Start playing an animation clip on an entity."""
@@ -58,6 +104,13 @@ class AnimationSystem:
             anim.current_action = clip_name
             anim.time = 0.0
             anim.playing = True
+            # Reset position keyframe tracking
+            anim.position_offset_x = 0.0
+            anim.position_offset_y = 0.0
+            anim._prev_pos_x = 0.0
+            anim._prev_pos_y = 0.0
+            anim._cycle_pos_x = 0.0
+            anim._cycle_pos_y = 0.0
 
 
 class PhysicsSystem:
@@ -98,7 +151,7 @@ class RenderSystem:
         self.width = width
         self.height = height
     
-    def render_frame(self, entities: list, bg_color: str = "#87CEEB") -> Image.Image:
+    def render_frame(self, entities: list, bg_color: str = "#FFFFFF") -> Image.Image:
         """Render all visible entities into a single frame.
         
         Args:
@@ -206,6 +259,16 @@ class Engine:
         # 2. Update animations
         anim_entities = self.get_entities_with('animation_player', 'skeleton')
         self.animation.process(dt, anim_entities)
+        
+        # 2.5 Apply animation position offsets to entity positions
+        for ent_id, anim in self.get_entities_with('animation_player'):
+            if anim.position_offset_x != 0 or anim.position_offset_y != 0:
+                pos = self.entities[ent_id].get('position')
+                if pos:
+                    pos.x += anim.position_offset_x
+                    pos.y += anim.position_offset_y
+                    anim.position_offset_x = 0
+                    anim.position_offset_y = 0
         
         # 3. Forward kinematics for all skeletons
         skel_entities = self.get_entities_with('position', 'skeleton')

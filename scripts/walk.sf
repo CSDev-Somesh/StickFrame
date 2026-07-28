@@ -1,0 +1,17 @@
+# StickFrame Script — Walk Demo
+# One stickman walks across the screen with visible joint nodes
+
+scene walk_scene width=800 height=400 fps=24
+
+character hero:
+    rig bipedal
+    appearance head_color="#FFD700" body_color="#222222"
+    position (50, 250)
+
+camera main:
+    follow hero
+    zoom 1.0
+
+timeline:
+    scene walk_scene:
+        0.0s     hero.walk

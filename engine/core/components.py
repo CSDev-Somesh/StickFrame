@@ -75,6 +75,8 @@ class ActionClip:
     duration: float                        # total duration in seconds
     bone_keyframes: Dict[str, List[Keyframe]] = field(default_factory=dict)  # bone_name -> keyframes
     loop: bool = False
+    # Position offset keyframes for moving the entire character through space
+    position_keyframes: Dict[str, List[Keyframe]] = field(default_factory=dict)  # 'x' or 'y' -> keyframes
 
 @dataclass
 class AnimationPlayer:
@@ -88,6 +90,16 @@ class AnimationPlayer:
     blend_from: Optional[str] = None       # crossfade source
     blend_time: float = 0.0
     blend_duration: float = 0.15
+    # Accumulated position offset from action position_keyframes
+    position_offset_x: float = 0.0
+    position_offset_y: float = 0.0
+    # Track previous frame's position keyframe value to compute delta
+    _prev_pos_x: float = 0.0
+    _prev_pos_y: float = 0.0
+    # Per-cycle offset for looping clips (so loops don't reset position)
+    _cycle_pos_x: float = 0.0
+    _cycle_pos_y: float = 0.0
+    _last_cycle_start: float = 0.0
 
 
 # ─── Physics Components ──────────────────────────────────────

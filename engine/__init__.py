@@ -120,6 +120,9 @@ class StickFrameEngine(Engine):
         dt = 1.0 / self.fps
         total_frames = int(duration * self.fps)
         
+        # Auto-wire timeline events to entity actions
+        self.timeline.on("*", self._timeline_handler)
+        
         self._export.start()
         
         for frame in range(total_frames):
