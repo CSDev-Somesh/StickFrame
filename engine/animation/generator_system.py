@@ -66,6 +66,21 @@ class GeneratorSystem:
             else:
                 pose = result
             
+            # Action blending — smooth crossfade when switching actions
+            if player.blend_from_pose is not None:
+                player.blend_timer += dt
+                blend_t = min(player.blend_timer / player.blend_duration, 1.0)
+                blend_weight = blend_t * (2 - blend_t)  # ease-out quad
+                for bone_name in pose:
+                    if bone_name in player.blend_from_pose:
+                        pose[bone_name] = (player.blend_from_pose[bone_name] * (1 - blend_weight) + 
+                                           pose[bone_name] * blend_weight)
+                if blend_t >= 1.0:
+                    player.blend_from_pose = None
+                    player.blend_timer = 0.0
+            
+            player._prev_frame_pose = dict(pose)
+            
             # Apply bone angles to skeleton
             for i, bone in enumerate(skeleton.bones):
                 if bone.name in pose:
@@ -74,32 +89,29 @@ class GeneratorSystem:
             # Position handling for generators that move the character
             if has_pos:
                 if player.current_action in ('walk', 'run'):
-                    stride = merged.get('stride', 55)
+                    scale = merged.get('scale', 1.0)
+                    stride = merged.get('stride', 55) * scale
                     speed = merged.get('speed', 1.2)
                     new_off = player.time * speed * stride * 0.8
                     player.position_offset_x = new_off - player._prev_offset_x
                     player._prev_offset_x = new_off
-                    
-                    bounce = merged.get('bounce', 3)
+
+                    bounce = merged.get('bounce', 3) * scale
                     new_bob = math.sin(player.time * speed * math.pi * 2) * bounce
                     player.position_offset_y = new_bob - player._prev_offset_y
                     player._prev_offset_y = new_bob
-                
-                elif player.current_action == 'jump':
-                    dy = y_offset - player._prev_offset_y
-                    player.position_offset_y = dy
-                    player._prev_offset_y = y_offset
-                
-                elif player.current_action == 'fall':
-                    dy = y_offset - player._prev_offset_y
-                    player.position_offset_y = dy
-                    player._prev_offset_y = y_offset
     
     def start_action(self, player: ProceduralPlayer, action_name: str, 
                      params: Dict[str, Any] = None) -> None:
-        """Start a procedural action on a player."""
+        """Start a procedural action on a player with blending."""
         if action_name not in GENERATORS:
             return
+        
+        # Capture current pose for blending before switching
+        if player._prev_frame_pose and player.current_action and player.current_action != action_name:
+            player.blend_from_pose = dict(player._prev_frame_pose)
+            player.blend_timer = 0.0
+        
         player.current_action = action_name
         player.time = 0.0
         player.playing = True

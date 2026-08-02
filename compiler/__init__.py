@@ -4,7 +4,7 @@ For StickFrame .sf script DSL
 """
 
 import re, json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 
 # ============================================================ #
@@ -33,7 +33,7 @@ KEYWORDS = {
     'camera': TokenType.CAMERA, 'timeline': TokenType.TIMELINE,
     'rig': TokenType.RIG, 'appearance': TokenType.APPEARANCE,
     'position': TokenType.POSITION, 'follow': TokenType.FOLLOW,
-    'zoom': TokenType.ZOOM,
+    'zoom': TokenType.ZOOM, 'action': TokenType.ACTION,
 }
 
 class Lexer:
@@ -77,6 +77,9 @@ class Lexer:
 
     def read_number(self):
         start = self.pos
+        # Handle leading minus
+        if self.peek() == '-':
+            self.advance()
         while self.pos < len(self.text) and (self.peek().isdigit() or self.peek() == '.'):
             self.advance()
         return self.text[start:self.pos]
@@ -153,6 +156,11 @@ class Lexer:
                 val = self.read_number()
                 self.tokens.append(Token(TokenType.NUMBER, val, line, col))
                 continue
+            if ch == '-' and self.pos + 1 < len(self.text) and (self.text[self.pos + 1].isdigit()):
+                line, col = self.line, self.col
+                val = self.read_number()
+                self.tokens.append(Token(TokenType.NUMBER, val, line, col))
+                continue
             if ch.isalpha() or ch == '_':
                 line, col = self.line, self.col
                 word = self.read_identifier()
@@ -188,11 +196,16 @@ class SceneDef:
 
 @dataclass
 class CharacterDef:
-    name: str; rig: str; appearance: dict; position: tuple
+    name: str; rig: str; appearance: dict; position: tuple; scale: float = 1.0
 
 @dataclass
 class CameraDef:
     name: str; follow: str; zoom: float
+
+@dataclass
+class ActionDef:
+    name: str; duration: float; loop: bool = False; keyframes: list = field(default_factory=list)
+    # keyframes = [(time, {bone: angle_in_degrees}), ...]
 
 @dataclass
 class TimelineEvent:
@@ -204,7 +217,7 @@ class Timeline:
 
 @dataclass
 class Script:
-    scenes: list; characters: list; cameras: list; timeline: Timeline
+    scenes: list; characters: list; cameras: list; timeline: Timeline; actions: list = field(default_factory=list)
 
 class Parser:
     def __init__(self, tokens):
@@ -245,6 +258,8 @@ class Parser:
                 script.cameras.append(self.parse_camera_def())
             elif tok.type == TokenType.TIMELINE:
                 script.timeline = self.parse_timeline()
+            elif tok.type == TokenType.ACTION:
+                script.actions.append(self.parse_action_def())
             else:
                 self.advance()
             self.skip_newlines()
@@ -276,7 +291,7 @@ class Parser:
         self.expect(TokenType.COLON)
         self.skip_newlines()
         self.expect(TokenType.INDENT)
-        rig = 'bipedal'; appearance = {}; position = (0, 0)
+        rig = 'bipedal'; appearance = {}; position = (0, 0); scale = 1.0
         while self.peek() and self.peek().type not in (TokenType.DEDENT, TokenType.EOF):
             tok = self.peek()
             if tok.type == TokenType.RIG:
@@ -297,10 +312,14 @@ class Parser:
                 y = float(self.expect(TokenType.NUMBER).value)
                 self.expect(TokenType.RPAREN)
                 position = (x, y)
+            elif tok.value == 'scale':
+                self.advance()
+                self.expect(TokenType.EQUALS)
+                scale = float(self.expect(TokenType.NUMBER).value)
             else:
                 self.advance()
         self.expect(TokenType.DEDENT)
-        return CharacterDef(name, rig, appearance, position)
+        return CharacterDef(name, rig, appearance, position, scale)
 
     def parse_camera_def(self):
         self.expect(TokenType.CAMERA)
@@ -321,6 +340,71 @@ class Parser:
                 self.advance()
         self.expect(TokenType.DEDENT)
         return CameraDef(name, follow, zoom)
+
+    def parse_action_def(self):
+        """Parse an action definition.
+
+        Syntax:
+            action kick:
+                0.0  right_upper_leg=100 right_lower_leg=-25
+                0.3  right_upper_leg=140 right_lower_leg=-80
+                0.6  right_upper_leg=100 right_lower_leg=-25
+        """
+        self.expect(TokenType.ACTION)
+        name = self.expect(TokenType.IDENTIFIER).value
+        self.expect(TokenType.COLON)
+        self.skip_newlines()
+        self.expect(TokenType.INDENT)
+
+        duration = 0.0
+        loop = False
+        keyframes = []
+
+        while self.peek() and self.peek().type not in (TokenType.DEDENT, TokenType.EOF):
+            tok = self.peek()
+            # Skip blank lines
+            if tok.type == TokenType.NEWLINE:
+                self.advance()
+                continue
+
+            # Parse duration/loop properties or keyframe lines
+            if tok.type == TokenType.IDENTIFIER and tok.value == 'duration':
+                self.advance()
+                duration = float(self.expect(TokenType.NUMBER).value)
+                continue
+            if tok.type == TokenType.IDENTIFIER and tok.value == 'loop':
+                self.advance()
+                val = self.expect(TokenType.IDENTIFIER).value
+                loop = val.lower() in ('true', 'yes', '1')
+                continue
+
+            # Keyframe line: time bone=angle bone=angle ...
+            if tok.type == TokenType.NUMBER:
+                t = float(tok.value)
+                self.advance()
+                # Optional 's' suffix
+                if self.peek() and self.peek().value == 's':
+                    self.advance()
+                pose = {}
+                # Parse bone=angle pairs until newline or dedent
+                while self.peek() and self.peek().type not in (TokenType.NEWLINE, TokenType.DEDENT, TokenType.EOF):
+                    bone = self.expect(TokenType.IDENTIFIER).value
+                    self.expect(TokenType.EQUALS)
+                    angle = float(self.expect(TokenType.NUMBER).value)
+                    pose[bone] = angle
+                keyframes.append((t, pose))
+                if t > duration:
+                    duration = t
+                # Skip newline separator
+                if self.peek() and self.peek().type == TokenType.NEWLINE:
+                    self.advance()
+                    # Skip indentation whitespace (already handled by lexer)
+                    self.skip_newlines()
+                continue
+            self.advance()
+
+        self.expect(TokenType.DEDENT)
+        return ActionDef(name, duration, loop, keyframes)
 
     def parse_timeline(self):
         self.expect(TokenType.TIMELINE)
@@ -351,7 +435,8 @@ class Parser:
                 if self.peek() and self.peek().type == TokenType.LPAREN:
                     self.advance()
                     while self.peek() and self.peek().type != TokenType.RPAREN:
-                        key = self.expect(TokenType.IDENTIFIER).value
+                        key_tok = self.advance()
+                        key = key_tok.value  # accept keywords like zoom, follow as param keys
                         self.expect(TokenType.EQUALS)
                         val_tok = self.advance()
                         if val_tok.type == TokenType.NUMBER:
@@ -393,13 +478,23 @@ class CodeGenerator:
             output["characters"].append({
                 "name": char.name, "rig": char.rig,
                 "appearance": char.appearance,
-                "position": {"x": char.position[0], "y": char.position[1]}
+                "position": {"x": char.position[0], "y": char.position[1]},
+                "scale": char.scale,
             })
         for cam in script.cameras:
             cam_dict = {"name": cam.name, "zoom": cam.zoom}
             if cam.follow:
                 cam_dict["follow"] = cam.follow
             output["cameras"].append(cam_dict)
+        # Action definitions
+        output["actions"] = []
+        for act in script.actions:
+            output["actions"].append({
+                "name": act.name,
+                "duration": act.duration,
+                "loop": act.loop,
+                "keyframes": [(t, pose) for t, pose in act.keyframes],
+            })
         if script.timeline:
             timeline_dict = {}
             for scene_name, events in script.timeline.scenes.items():

@@ -41,6 +41,9 @@ class BoneDef:
     length: float          # pixels
     parent_index: int = -1  # index into skeleton's bone list, -1 = root
     default_angle: float = 0.0  # radians, relative to parent
+    thickness: float = 1.0  # line-width multiplier (1.0 = base pen) —
+    # enables tapered limbs: torso 1.0, thighs 0.9, upper arm 0.85,
+    # forearm/lower leg 0.8, hands/feet 0.7 (visual hierarchy)
 
 @dataclass
 class Skeleton:
@@ -53,11 +56,21 @@ class Skeleton:
 
 @dataclass
 class Appearance:
-    head_color: str = "#FFD700"
-    body_color: str = "#333333"
-    head_radius: float = 12.0
-    limb_thickness: float = 3.0
+    head_color: str = "#FFD700"       # yellow head (unchanged)
+    body_color: str = "#444444"       # fallback line color
+    # Clothing / skin colors
+    shirt_color: str = "#2E86DE"      # blue shirt on torso
+    pants_color: str = "#1B2A4A"      # dark navy pants on legs
+    shoe_color: str = "#8B4513"       # brown shoes on feet
+    skin_color: str = "#FFDAB9"       # peach skin on neck, forearms, hands
+    head_radius: float = 7.0
+    limb_thickness: float = 2.0
     scale: float = 1.0
+    # Part-visibility filter for the preview lab's part-by-part rig viewer.
+    # None = render everything; a set like {"head","torso"} renders ONLY
+    # those body parts (each bone maps to a part via BONE_PART in the
+    # renderer). Defaults to None so the engine behaves exactly as before.
+    visible_parts: Optional[set] = None
 
 
 # ─── Animation Components ─────────────────────────────────────
@@ -114,12 +127,17 @@ class ProceduralPlayer:
     speed: float = 1.0
     playing: bool = False
     loop: bool = True
-    params: Dict[str, Any] = field(default_factory=dict)  # generator parameters
-    # Position tracking for generators that move the character
+    params: Dict[str, Any] = field(default_factory=dict)
+    # Position tracking
     position_offset_x: float = 0.0
     position_offset_y: float = 0.0
     _prev_offset_x: float = 0.0
     _prev_offset_y: float = 0.0
+    # Action blending
+    blend_from_pose: Optional[Dict[str, float]] = None
+    blend_timer: float = 0.0
+    blend_duration: float = 0.12
+    _prev_frame_pose: Optional[Dict[str, float]] = None
 
 
 # ─── Physics Components ──────────────────────────────────────
@@ -131,6 +149,7 @@ class PhysicsBody:
     is_static: bool = False
     restitution: float = 0.3  # bounciness
     friction: float = 0.5
+    ground_offset: float = 0.0  # feet distance below entity origin (hips) — used by ground collision
 
 @dataclass
 class Collider:
@@ -152,13 +171,28 @@ class Renderable:
 
 @dataclass
 class Camera:
-    """Camera/viewport definition"""
+    """Camera/viewport definition with smooth follow, shake, and zoom animation."""
     target_entity: Optional[int] = None  # entity to follow
     zoom: float = 1.0
     rotation: float = 0.0
     shake_intensity: float = 0.0
     shake_duration: float = 0.0
     shake_timer: float = 0.0
+    # Smooth follow
+    smooth_speed: float = 5.0      # higher = snappier follow (0 = instant)
+    current_x: float = 0.0         # actual camera position for lerp
+    current_y: float = 0.0
+    # Per-axis follow toggles — e.g. side-scroller: follow_x=True, follow_y=False
+    # (camera y pinned to current_y so the character stays grounded on a fixed floor)
+    follow_x: bool = True
+    follow_y: bool = True
+    # Zoom bounds
+    min_zoom: float = 0.3
+    max_zoom: float = 3.0
+    # Animated zoom
+    target_zoom: Optional[float] = None  # None = use zoom directly
+    # Multi-camera
+    active: bool = True
 
 
 # ─── Dialogue Component ──────────────────────────────────────

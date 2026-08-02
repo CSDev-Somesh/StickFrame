@@ -78,24 +78,30 @@ class FabrikChain:
         if not self.bones:
             return False
         
-        # Check if target is reachable
+        n = len(self.bones)  # number of bones
+        n_joints = n + 1     # n bones = n+1 joints (including base)
+        
+        # Handle edge case: target at or very near base
         dx = target_x - self.base_pos[0]
         dy = target_y - self.base_pos[1]
         dist_to_target = math.sqrt(dx*dx + dy*dy)
+        
+        if dist_to_target < 0.01:
+            # Target at base — fold all joints to base position
+            self.joints = [self.base_pos] * n_joints
+            return True
+        
+        # If target is unreachable, stretch toward it
         if dist_to_target > self.total_length:
-            # Target too far — stretch toward it
             ratio = self.total_length / dist_to_target
             target_x = self.base_pos[0] + dx * ratio
             target_y = self.base_pos[1] + dy * ratio
         
-        n = len(self.bones)  # number of bones
-        n_joints = n + 1     # n bones = n+1 joints (including base)
-        
         # Initialize joints if empty
-        if not self.joints:
+        if not self.joints or len(self.joints) != n_joints:
             self.joints = [(self.base_pos[0], self.base_pos[1]) for _ in range(n_joints)]
             for i in range(1, n_joints):
-                self.joints[i] = (self.base_pos[0], self.base_pos[1])
+                self.joints[i] = (self.base_pos[0] + 1, self.base_pos[1])  # tiny offset to avoid zero-vec
         
         target = (target_x, target_y)
         base = self.base_pos

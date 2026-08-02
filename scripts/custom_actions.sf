@@ -1,0 +1,32 @@
+# StickFrame — Custom Action Test
+scene dojo width=800 height=400 fps=24
+
+camera main:
+    follow fighter
+    zoom 1.0
+
+character fighter:
+    rig bipedal
+    appearance head_color="#FFD700" body_color="#222222"
+    scale=2.8
+    position (400, 274)
+
+# Custom keyframe-defined action — no Python code needed
+action kick:
+    0.0  right_upper_leg=100 right_lower_leg=-25 left_upper_leg=100 left_lower_leg=-25 spine=-90
+    0.15 right_upper_leg=140 right_lower_leg=-80 left_upper_leg=95 left_lower_leg=-20 spine=-85
+    0.3  right_upper_leg=120 right_lower_leg=-50 left_upper_leg=100 left_lower_leg=-25 spine=-88
+    0.45 right_upper_leg=100 right_lower_leg=-25 left_upper_leg=100 left_lower_leg=-25 spine=-90
+
+action wave:
+    0.0  right_upper_arm=175 right_forearm=-25 left_upper_arm=185 left_forearm=25
+    0.3  right_upper_arm=120 right_forearm=-60 left_upper_arm=185 left_forearm=25
+    0.6  right_upper_arm=175 right_forearm=-25 left_upper_arm=185 left_forearm=25
+
+timeline:
+    scene dojo:
+        0.0s  fighter.idle
+        1.0s  fighter.kick
+        2.0s  fighter.idle
+        2.5s  fighter.wave
+        3.5s  fighter.idle

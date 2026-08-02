@@ -126,23 +126,118 @@ class PhysicsSystem:
         for ent_id, pos, vel, phys in entities:
             if phys.is_static:
                 continue
-            
-            # Apply gravity
-            vel.vy += self.gravity * phys.gravity_scale * dt
-            
+
+            # Ground plane for THIS entity: the feet are ground_offset below
+            # the origin (hips), so gravity stops and collision snaps at
+            # ground_y - ground_offset — feet land on the floor, not the hips.
+            ground = self.ground_y - phys.ground_offset
+
+            # Apply gravity only if above ground
+            if pos.y < ground:
+                vel.vy += self.gravity * phys.gravity_scale * dt
+
             # Integrate position
             pos.x += vel.vx * dt
             pos.y += vel.vy * dt
-            
+
             # Ground collision
-            if pos.y >= self.ground_y:
-                pos.y = self.ground_y
+            if pos.y >= ground:
+                pos.y = ground
                 vel.vy = -vel.vy * phys.restitution
                 if abs(vel.vy) < 10:
                     vel.vy = 0.0
-            
+
             # Friction
             vel.vx *= (1.0 - phys.friction * dt)
+
+
+class CameraSystem:
+    """Computes viewport transforms from camera components.
+
+    Features:
+      - Smooth follow with configurable lerp speed
+      - Camera shake (deterministic smooth curve)
+      - Animated zoom transitions (via target_zoom)
+      - Zoom min/max bounds
+      - Active camera selection for multi-camera scenes
+    """
+
+    def compute_viewport(self, camera_entities: list, entity_positions: dict,
+                         screen_width: int, screen_height: int, dt: float = 0) -> tuple:
+        """Compute viewport transform with smooth follow, shake, zoom animation.
+
+        Args:
+            camera_entities: List of (entity_id, camera) tuples
+            entity_positions: Dict of entity_id -> Position
+            screen_width, screen_height: Output dimensions
+            dt: Delta time for smooth interpolation (0 = instant)
+
+        Returns:
+            (offset_x, offset_y, zoom) — apply world_pos * zoom + offset for rendering
+        """
+        # Find the first active camera
+        active_cam = None
+        for ent_id, cam in camera_entities:
+            if cam.active:
+                active_cam = (ent_id, cam)
+                break
+
+        if active_cam is None:
+            return (0, 0, 1.0)
+
+        ent_id, cam = active_cam
+
+        # 1. Compute target position (what the camera should look at)
+        target_x, target_y = screen_width / 2, screen_height / 2  # default center
+        if cam.target_entity is not None and cam.target_entity in entity_positions:
+            target_pos = entity_positions[cam.target_entity]
+            target_x, target_y = target_pos.x, target_pos.y
+        elif ent_id in entity_positions:
+            own_pos = entity_positions[ent_id]
+            target_x, target_y = own_pos.x, own_pos.y
+
+        # Per-axis follow toggles: a disabled axis pins the camera to its
+        # current position (set current_y = screen_height/2 for a grounded
+        # side-scroller view where the character stays on a fixed floor line).
+        if not cam.follow_x:
+            target_x = cam.current_x
+        if not cam.follow_y:
+            target_y = cam.current_y
+
+        # 2. Smooth follow — lerp current position toward target
+        if dt > 0 and cam.smooth_speed > 0:
+            lerp = 1.0 - math.exp(-cam.smooth_speed * dt)
+            cam.current_x += (target_x - cam.current_x) * lerp
+            cam.current_y += (target_y - cam.current_y) * lerp
+        else:
+            cam.current_x = target_x
+            cam.current_y = target_y
+
+        # 3. Animated zoom — lerp toward target_zoom
+        tz = cam.target_zoom if cam.target_zoom is not None else cam.zoom
+        if dt > 0 and cam.smooth_speed > 0:
+            lerp_z = 1.0 - math.exp(-cam.smooth_speed * dt)
+            cam.zoom += (tz - cam.zoom) * lerp_z
+        else:
+            cam.zoom = tz
+
+        # 4. Clamp zoom to bounds
+        cam.zoom = max(cam.min_zoom, min(cam.max_zoom, cam.zoom))
+
+        # 5. Camera shake — deterministic smooth sine/cosine
+        shake_ox, shake_oy = 0.0, 0.0
+        if cam.shake_timer > 0:
+            shake_ox = math.sin(cam.shake_timer * 31.7) * cam.shake_intensity
+            shake_oy = math.cos(cam.shake_timer * 27.3) * cam.shake_intensity
+            cam.shake_timer -= dt
+            if cam.shake_timer <= 0:
+                cam.shake_timer = 0.0
+                cam.shake_intensity = 0.0
+
+        # 6. Compute viewport offset
+        offset_x = screen_width / 2 - cam.current_x * cam.zoom + shake_ox
+        offset_y = screen_height / 2 - cam.current_y * cam.zoom + shake_oy
+        return (offset_x, offset_y, cam.zoom)
 
 
 class RenderSystem:
@@ -152,24 +247,29 @@ class RenderSystem:
         self.width = width
         self.height = height
     
-    def render_frame(self, entities: list, bg_color: str = "#FFFFFF") -> Image.Image:
+    def render_frame(self, entities: list, bg_color: str = "#FFFFFF",
+                     viewport_offset: tuple = (0, 0), zoom: float = 1.0) -> Image.Image:
         """Render all visible entities into a single frame.
-        
+
         Args:
             entities: List of (position, skeleton, appearance, renderable) tuples
             bg_color: Background color
-            
+            viewport_offset: (offset_x, offset_y) to apply to all world coords
+            zoom: Viewport zoom factor
+
         Returns:
             Rendered PIL Image
         """
         img = Image.new('RGB', (self.width, self.height), bg_color)
         draw = ImageDraw.Draw(img)
-        
+
         for ent_id, pos, skel, app, rend in entities:
             if not rend.visible:
                 continue
-            draw_stickman(draw, skel, app, pos)
-        
+            # Apply viewport transform: screen = world * zoom + offset
+            draw_stickman(draw, skel, app, pos,
+                          viewport_offset=viewport_offset, zoom=zoom)
+
         return img
 
 
@@ -198,6 +298,7 @@ class Engine:
         self.physics = PhysicsSystem(ground_y=height - 20)
         self.renderer = RenderSystem(width, height)
         self.timeline = TimelineEvaluator()
+        self.camera = CameraSystem()
         
         # Entity storage (simple flat storage for MVP)
         self.entities: dict = {}  # entity_id -> entity_data
@@ -284,18 +385,29 @@ class Engine:
                     pos.x = pos.x + player.position_offset_x
                     pos.y = pos.y + player.position_offset_y
         
-        # 3. Forward kinematics for all skeletons
+        # 3. Physics — run BEFORE FK so skeletons reflect physics movements
+        phys_entities = self.get_entities_with('position', 'velocity', 'physics')
+        self.physics.process(dt, phys_entities)
+
+        # 4. Forward kinematics for all skeletons (uses updated positions)
         skel_entities = self.get_entities_with('position', 'skeleton')
         for ent_id, pos, skel in skel_entities:
             compute_forward_kinematics(skel, pos.x, pos.y)
-        
-        # 4. Physics
-        phys_entities = self.get_entities_with('position', 'velocity', 'physics')
-        self.physics.process(dt, phys_entities)
-        
+
+        # 4.5 Camera / viewport transform
+        cam_entities = self.get_entities_with('camera')
+        # Build entity position lookup for camera target tracking
+        ent_positions = {}
+        for ent_id, pos in self.get_entities_with('position'):
+            ent_positions[ent_id] = pos
+        viewport_offset_x, viewport_offset_y, zoom = self.camera.compute_viewport(
+            cam_entities, ent_positions, self.width, self.height, dt=dt)
+
         # 5. Render
         render_entities = self.get_entities_with('position', 'skeleton', 'appearance', 'renderable')
-        frame = self.renderer.render_frame(render_entities)
+        frame = self.renderer.render_frame(render_entities,
+                                         viewport_offset=(viewport_offset_x, viewport_offset_y),
+                                         zoom=zoom)
         
         return frame
     
