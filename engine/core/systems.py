@@ -2,7 +2,7 @@
 
 import math
 from typing import Optional
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
 from engine.core.components import (
     Position, Velocity, Transform,
@@ -14,7 +14,7 @@ from engine.animation.skeleton import compute_forward_kinematics, apply_action_t
 from engine.animation.easing import interpolate_keyframes
 from engine.renderer.stickman_renderer import draw_stickman
 from engine.timeline.evaluator import TimelineEvaluator
-from engine.animation.generator_system import GeneratorSystem
+from engine.animation.generator_system import GeneratorSystem, HEIGHT_ACTIONS
 
 
 class AnimationSystem:
@@ -272,6 +272,60 @@ class RenderSystem:
 
         return img
 
+    def draw_dialogue_bubble(self, frame: Image.Image, text: str,
+                             cx: float, top_y: float, zoom: float = 1.0) -> None:
+        """Draw a speech bubble above a character's head.
+
+        Args:
+            frame: The frame image to draw on
+            text: The dialogue text
+            cx: Screen-space bubble center x (head position)
+            top_y: Screen-space y for the top of the bubble
+            zoom: Viewport zoom (scales font + padding modestly)
+        """
+        if not text:
+            return
+        draw = ImageDraw.Draw(frame)
+        try:
+            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                                      max(12, int(14 * zoom)))
+        except Exception:
+            font = ImageFont.load_default()
+
+        # Wrap text to ~28 chars per line
+        words, lines, cur = text.split(), [], ""
+        for w in words:
+            cand = f"{cur} {w}".strip()
+            if len(cand) > 28 and cur:
+                lines.append(cur)
+                cur = w
+            else:
+                cur = cand
+        lines.append(cur)
+
+        pad = 6
+        line_h = font.getbbox("Ag")[3] + 4
+        w = max(font.getbbox(l)[2] for l in lines) + 2 * pad
+        h = line_h * len(lines) + 2 * pad
+
+        x0, y0 = cx - w / 2, top_y - h
+        # Clamp to frame bounds
+        x0 = max(2, min(x0, frame.width - w - 2))
+        y0 = max(2, min(y0, frame.height - h - 2))
+
+        draw.rounded_rectangle([x0, y0, x0 + w, y0 + h], radius=6,
+                               fill="white", outline="black", width=2)
+        # Bubble tail — small triangle pointing down at the head
+        tx = min(max(cx, x0 + 10), x0 + w - 10)
+        draw.polygon([(tx - 7, y0 + h), (tx + 7, y0 + h), (cx, y0 + h + 10)],
+                     fill="white", outline="black")
+        draw.line([(tx - 7, y0 + h), (tx + 7, y0 + h)], fill="black", width=2)
+
+        for i, l in enumerate(lines):
+            lw = font.getbbox(l)[2]
+            draw.text((cx - lw / 2, y0 + pad + i * line_h), l,
+                      font=font, fill="black")
+
 
 class Engine:
     """Main engine orchestrator — ties all systems together.
@@ -303,6 +357,8 @@ class Engine:
         # Entity storage (simple flat storage for MVP)
         self.entities: dict = {}  # entity_id -> entity_data
         self._next_id = 1
+        # ponytail: single global bg color; timeline `bg.set(color=...)` changes it
+        self.bg_color = "#FFFFFF"
     
     def create_entity(self, components: dict) -> int:
         """Create an entity with the given components.
@@ -384,6 +440,30 @@ class Engine:
                 if pos:
                     pos.x = pos.x + player.position_offset_x
                     pos.y = pos.y + player.position_offset_y
+            # Height-driven actions (sit/lie/kneel): the generator returns a
+            # total hips descent; apply it to position.y and move the physics
+            # ground to follow so the ground clamp never fights the descent.
+            if player.playing and player.current_action in HEIGHT_ACTIONS \
+               and player._height_offset is not None:
+                pos = self.entities[ent_id].get('position')
+                if pos:
+                    if player._height_base is None:
+                        player._height_base = pos.y
+                    pos.y = player._height_base + player._height_offset
+                    phys = self.entities[ent_id].get('physics')
+                    if phys:
+                        phys.ground_offset = self.physics.ground_y - pos.y
+                    vel = self.entities[ent_id].get('velocity')
+                    if vel:
+                        vel.vy = 0.0
+            # Delayed physics impulse — fires once the action reaches
+            # impulse_time (jump: launch AFTER the crouch pose reads)
+            if player.impulse_vy and not player.impulse_fired and \
+               player.time >= player.impulse_time:
+                vel = self.entities[ent_id].get('velocity')
+                if vel:
+                    vel.vy = player.impulse_vy
+                player.impulse_fired = True
         
         # 3. Physics — run BEFORE FK so skeletons reflect physics movements
         phys_entities = self.get_entities_with('position', 'velocity', 'physics')
@@ -407,7 +487,23 @@ class Engine:
         render_entities = self.get_entities_with('position', 'skeleton', 'appearance', 'renderable')
         frame = self.renderer.render_frame(render_entities,
                                          viewport_offset=(viewport_offset_x, viewport_offset_y),
-                                         zoom=zoom)
+                                         zoom=zoom,
+                                         bg_color=self.bg_color)
+
+        # 5.5 Dialogue bubbles — draw above characters with active speech
+        dlg_entities = self.get_entities_with('position', 'skeleton', 'dialogue')
+        for ent_id, pos, skel, dlg in dlg_entities:
+            if dlg.active_text and dlg.progress > 0:
+                # Head bone is index 4 in the bipedal rig
+                head_i = next((i for i, b in enumerate(skel.bones) if b.name == "head"), None)
+                if head_i is not None:
+                    hx, hy = skel.world_positions[head_i]
+                    self.renderer.draw_dialogue_bubble(
+                        frame, dlg.active_text,
+                        hx * zoom + viewport_offset_x,
+                        hy * zoom + viewport_offset_y - 20 * zoom,
+                        zoom)
+                dlg.progress -= dt
         
         return frame
     

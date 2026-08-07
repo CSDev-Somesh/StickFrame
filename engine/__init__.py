@@ -15,12 +15,13 @@ from PIL import Image
 from engine.core.components import (
     Position, Velocity, Appearance, Skeleton,
     AnimationPlayer, ActionClip, Renderable, Camera, PhysicsBody, Collider,
-    TimelineEvent, ProceduralPlayer,
+    TimelineEvent, ProceduralPlayer, DialogueState,
 )
 from engine.core.systems import Engine, AnimationSystem
 from engine.animation.skeleton import build_bipedal_skeleton, compute_forward_kinematics
 from engine.animation.actions import get_action, BUILTIN_ACTIONS
 from engine.pipeline.export import ExportPipeline
+from engine.animation.generator_system import HEIGHT_ACTIONS
 
 
 class StickFrameEngine(Engine):
@@ -91,6 +92,9 @@ class StickFrameEngine(Engine):
         player = ProceduralPlayer(playing=True)
         anim_player = AnimationPlayer()
 
+        phys = PhysicsBody(mass=1.0, is_static=False, ground_offset=ground_offset,
+                           rest_ground_offset=ground_offset)
+
         return self.create_entity({
             'position': Position(x, y),
             'velocity': Velocity(0, 0),
@@ -99,7 +103,8 @@ class StickFrameEngine(Engine):
             'procedural_player': player,
             'animation_player': anim_player,
             'renderable': Renderable(visible=True, z_order=0),
-            'physics': PhysicsBody(mass=1.0, is_static=False, ground_offset=ground_offset),
+            'physics': phys,
+            'dialogue': DialogueState(),
             'name': name,
         })
     
@@ -157,10 +162,20 @@ class StickFrameEngine(Engine):
             if phys:
                 params['ground'] = phys.ground_offset - HAND_FOOT_RADIUS
             self.generators.start_action(player, action_name, params=params)
+            # Leaving a height-driven action (sit/lie/kneel): restore the
+            # standing ground offset so walk/run/idle ground at normal height
+            # again. Height actions manage ground_offset themselves.
+            if action_name not in HEIGHT_ACTIONS:
+                phys = comps.get('physics')
+                if phys and phys.rest_ground_offset:
+                    phys.ground_offset = phys.rest_ground_offset
             # Physics impulses for jump/fall
             vel = comps.get('velocity')
             if action_name == 'jump' and vel:
-                vel.vy = -420
+                # Delayed: fires when the generator crosses impulse_time
+                # (after the crouch), so anticipation reads before launch.
+                player.impulse_vy = -420
+                player.impulse_time = 0.2
             elif action_name == 'fall' and vel:
                 vel.vy = 180
                 vel.vx = -80
@@ -305,6 +320,10 @@ class StickFrameEngine(Engine):
             target_eid = entity_map.get(cam_def.get('follow'))
             cam = Camera(target_entity=target_eid, zoom=cam_def.get('zoom', 1.0),
                          follow_y=False, current_y=self.height / 2)
+            # ponytail: start the follow camera at the target's x so the
+            # first frame is centered instead of panning in from the edge
+            if target_eid is not None:
+                cam.current_x = self.entities[target_eid]['position'].x
             self.create_entity({'camera': cam, 'name': cam_def['name']})
 
         # Convert action definitions from .sf into ActionClip objects
@@ -390,6 +409,11 @@ class StickFrameEngine(Engine):
             return
         entity_name, action_name = parts
 
+        # Global scene controls: bg.set(color="#...") changes background
+        if entity_name == 'bg' and action_name == 'set' and 'color' in params:
+            self.bg_color = str(params['color'])
+            return
+
         # Find entity by name
         for eid, comps in self.entities.items():
             if comps.get('name') == entity_name:
@@ -427,6 +451,14 @@ class StickFrameEngine(Engine):
                     break
 
                 # Character actions
+                # Dialogue: show a speech bubble above the character for a duration
+                if action_name == 'speak':
+                    dlg = comps.get('dialogue')
+                    if dlg:
+                        dlg.active_text = params.get('text', '')
+                        dlg.progress = float(params.get('duration', 2.5))  # countdown timer
+                    break
+
                 self.play_action(eid, action_name)
 
                 if 'x' in params:

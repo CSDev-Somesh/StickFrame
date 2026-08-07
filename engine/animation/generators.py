@@ -291,40 +291,51 @@ def gen_run(t: float, params: Dict[str, Any] = None) -> Dict[str, float]:
     # each other to cancel the angular momentum of the swinging limbs.
     twist = swing * _R(7)
 
+    # Knee drive: the recovery knee flexes hard mid-swing (heel kick up
+    # behind), straightening as the leg reaches forward for the next
+    # contact. |swing| peaks at mid-swing both directions, so it drives
+    # the flex at exactly the right times.
+    knee_flex = _R(22) + abs(swing) * _R(52)   # 22°..74° — real runner bend
+    # Elbow pump: elbows stay bent ~85° through the whole arm swing,
+    # opening slightly at the extremes (a pumping arm never locks).
+    elbow_bend = _R(85) - abs(swing) * _R(25)  # 60°..85°
+
     return {
         **_REST,
-        'spine': _R(-95) + double * _R(3),  # lean forward
+        # Forward lean: spine -79 tilts the torso ~10-12° FORWARD into the
+        # run (measured: spine -90 ≈ vertical, -88 ≈ +2° forward, so less
+        # negative = more forward on this rig). Real runners lean 10–20°;
+        # anything under ~8° reads as "upright" on a still frame.
+        'spine': _R(-79) + double * _R(3),
         'chest': twist,
         'neck': _R(-5),
         'head': _R(-5) + double * _R(2),
         'left_shoulder': _R(-132) - swing * _R(8),
         'right_shoulder': _R(132) - swing_opp * _R(8),
-        'left_upper_arm': _R(-38) - swing * _R(45),  # bigger arm swing
-        'left_forearm': _R(30) + swing * _R(25),
-        # sprinter's arm: wrist stays firm, hand drives through
+        'left_upper_arm': _R(-38) - swing * _R(48),  # bigger arm swing
+        'left_forearm': elbow_bend,                   # pumps bent, not flails
+        # wrist stays firm, hand drives through — sprinter's pump
         'left_wrist': -swing * _R(8),
         'left_hand': -swing * _R(20),
-        'right_upper_arm': _R(38) - swing_opp * _R(45),
-        'right_forearm': _R(-30) + swing_opp * _R(25),
+        'right_upper_arm': _R(38) - swing_opp * _R(48),
+        'right_forearm': -elbow_bend,
         'right_wrist': -swing_opp * _R(8),
         'right_hand': -swing_opp * _R(20),
         # hip bones swing with the stride — the pelvis drops on the swing
         # side (Trendelenburg tilt) which the hip bone angle expresses
         'left_hip': _R(99) + swing * _R(5),
-        # Thigh swing is measured from the HIP bone (world ~99°, pointing
-        # down-out), not from the pelvis — so ±25° keeps the leg inside a
-        # 74°–124° world arc. The v2 value of ±50° was relative to a
-        # 0° parent and throws the thigh past horizontal on this rig.
+        # Thigh swing measured from the HIP bone (world ~99°, pointing
+        # down-out), so ±25° keeps the leg inside a 74°–124° world arc.
         'left_upper_leg': _R(8) + swing * _R(25),
-        # Knee only ever flexes one way: a constant 18° bend keeps it from
-        # hyperextending at the extremes of the swing.
-        'left_lower_leg': _R(-18) - swing * _R(18),
+        # Knee flexes HARD mid-swing (heel kick), straightens at contact —
+        # the flex peaks on |swing| so both the drive and recovery read
+        'left_lower_leg': -knee_flex,
         # ankle dorsiflexes on lift, plantarflexes on push-off
         'left_ankle': lift * _R(12) - _R(4),
         'left_foot': _R(20) + lift * _R(15),
         'right_hip': _R(81) + swing_opp * _R(5),
         'right_upper_leg': _R(-6) + swing_opp * _R(25),
-        'right_lower_leg': _R(18) - swing_opp * _R(18),
+        'right_lower_leg': knee_flex,
         'right_ankle': -(lift * _R(12) - _R(4)),
         'right_foot': _R(-20) + lift * _R(15),
         'hips': -twist,
@@ -334,69 +345,80 @@ def gen_run(t: float, params: Dict[str, Any] = None) -> Dict[str, float]:
 # ─── JUMP ──────────────────────────────────────────────────
 
 def gen_jump(t: float, params: Dict[str, Any] = None) -> Dict[str, float]:
-    """Jump poses — crouch → reach → tuck → land
-    Physics handles the actual vertical movement, this just poses bones.
+    """Jump poses — crouch → spring → tuck → descend → land.
+
+    Physics handles the vertical arc; this poses the bones. The launch
+    impulse is DELAYED (play_action sets impulse_time=0.2) so the crouch
+    fully reads before the body lifts — without anticipation a jump
+    looks like the ground just dropped away.
+
+    Timeline (duration 1.1s ≈ full physics flight: launch@0.2, apex@0.63,
+    land@1.06):
+      0.00–0.20  CROUCH  — deep knee bend, arms wind UP-back, spine braces
+      0.20–0.42  SPRING  — legs extend hard, arms throw UP overhead
+      0.42–0.72  AIR     — knees tuck, arms stay up, slight spine arch
+      0.72–0.92  DESCEND — legs extend toward landing, arms start down
+      0.92–1.10  LAND    — deep absorbing crouch, arms swing back
     """
     p = params or {}
-    duration = p.get('duration', 0.8)
+    duration = p.get('duration', 1.1)
 
     progress = min(t / duration, 1.0)
 
-    if progress < 0.2:  # crouch
-        phase = progress / 0.2
-        crouch = phase
-        spine_lean = _R(5) * crouch
-        arm_up = crouch * _R(30)
-        leg_crouch = crouch * _R(25)
-    elif progress < 0.4:  # spring up
-        phase = (progress - 0.2) / 0.2
-        spine_lean = _R(5) * (1 - phase)
-        arm_up = _R(30) * (1 - phase) + phase * _R(80)
-        leg_crouch = _R(25) * (1 - phase)
-    elif progress < 0.6:  # float / tuck
-        phase = (progress - 0.4) / 0.2
-        arm_up = _R(80)
-        spine_lean = 0
-        leg_crouch = -_R(5) * (1 + phase * 0.5)  # legs tuck slightly
-    elif progress < 0.8:  # coming down
-        phase = (progress - 0.6) / 0.2
-        arm_up = _R(80) * (1 - phase * 0.5)
-        spine_lean = phase * _R(3)
-        leg_crouch = -_R(7) * (1 - phase) + phase * _R(10)
-    else:  # land
-        phase = (progress - 0.8) / 0.2
-        leg_crouch = _R(10) + phase * _R(15)  # deep crouch on land
-        arm_up = _R(40) * (1 - phase)
-        spine_lean = _R(3) * (1 - phase)
+    if progress < 0.2:  # CROUCH — wind up
+        ph = progress / 0.2
+        leg_bend = ph * 40           # deep
+        arm_wind = ph * 45           # arms swing up-BACK (negative raise)
+        lean = -ph * 3               # spine braces slightly back
+    elif progress < 0.42:  # SPRING
+        ph = (progress - 0.2) / 0.22
+        leg_bend = 40 * (1 - ph)
+        arm_wind = 45 * (1 - ph) - ph * 100   # whip from back to overhead
+        lean = -3 * (1 - ph) + ph * 6         # spine drives forward-up
+    elif progress < 0.72:  # AIR — tuck
+        ph = (progress - 0.42) / 0.3
+        leg_bend = 15 + ph * 20     # knees tuck up
+        arm_wind = -100 - ph * 8    # arms stay overhead, slight settle
+        lean = 6 - ph * 4
+    elif progress < 0.92:  # DESCEND
+        ph = (progress - 0.72) / 0.2
+        leg_bend = 35 * (1 - ph)    # extend toward landing
+        arm_wind = -108 + ph * 30   # arms sweep down-out
+        lean = 2 - ph * 2
+    else:  # LAND — absorb
+        ph = (progress - 0.92) / 0.18
+        leg_bend = 45 + ph * 5      # deep crouch on impact
+        arm_wind = -78 - ph * 30    # arms swing back for balance
+        lean = ph * 4
 
     return {
         **_REST,
-        'spine': _R(-90) + spine_lean,
-        'neck': _R(5) * (1 - progress),
-        'head': _R(5) * (1 - progress),
-        # shoulders lift with the arms — a big arm raise is half scapula
-        'left_shoulder': _R(-132) - arm_up * 0.25,
-        'right_shoulder': _R(132) + arm_up * 0.25,
-        'left_upper_arm': _R(-38) - arm_up,
-        'left_forearm': _R(5) - arm_up * 0.3,
-        'left_wrist': -arm_up * 0.15,
-        'left_hand': -arm_up * 0.2,
-        'right_upper_arm': _R(38) + arm_up,
-        'right_forearm': _R(-5) + arm_up * 0.3,
-        'right_wrist': arm_up * 0.15,
-        'right_hand': arm_up * 0.2,
-        # crouch spreads the hips slightly (weight-bearing squat stance)
-        'left_hip': _R(99) + leg_crouch * 0.12,
-        'left_upper_leg': _R(8) + leg_crouch,
-        'left_lower_leg': _R(-12) - leg_crouch * 0.6,
-        # ankle absorbs the crouch: deeper squat = more dorsiflexion, and
-        # it plantarflexes (points) during the airborne tuck
-        'left_ankle': leg_crouch * 0.4,
+        'spine': _R(-90) + _R(lean),
+        'neck': _R(lean * 0.5),
+        'head': _R(lean * 0.5),
+        # shoulders ride the arm raise (scapula rotation)
+        'left_shoulder': _R(-132) + arm_wind * 0.2,
+        'right_shoulder': _R(132) - arm_wind * 0.2,
+        # arm_wind positive = arms wind UP-BACK (hand near shoulder);
+        # negative = arms overhead / sweeping down (hand above head)
+        'left_upper_arm': _R(-38) + _R(arm_wind),
+        'left_forearm': _R(10) + _R(arm_wind * 0.35),
+        'left_wrist': _R(arm_wind * 0.15),
+        'left_hand': _R(arm_wind * 0.2),
+        'right_upper_arm': _R(38) - _R(arm_wind),
+        'right_forearm': _R(-10) - _R(arm_wind * 0.35),
+        'right_wrist': -_R(arm_wind * 0.15),
+        'right_hand': -_R(arm_wind * 0.2),
+        # leg_bend = knee flexion; thigh drives forward on spring
+        'left_hip': _R(99) + _R(leg_bend * 0.12),
+        'left_upper_leg': _R(8) + _R(leg_bend * 0.9),
+        'left_lower_leg': _R(-12) - _R(leg_bend * 0.75),
+        'left_ankle': _R(leg_bend * 0.25),
         'left_foot': _R(20),
-        'right_hip': _R(81) - leg_crouch * 0.12,
-        'right_upper_leg': _R(-6) + leg_crouch,
-        'right_lower_leg': _R(9) - leg_crouch * 0.6,
-        'right_ankle': -leg_crouch * 0.4,
+        'right_hip': _R(81) - _R(leg_bend * 0.12),
+        'right_upper_leg': _R(-6) + _R(leg_bend * 0.9),
+        'right_lower_leg': _R(9) - _R(leg_bend * 0.75),
+        'right_ankle': -_R(leg_bend * 0.25),
         'right_foot': _R(-20),
     }
 
@@ -554,6 +576,912 @@ def gen_fall(t: float, params: Dict[str, Any] = None) -> Dict[str, float]:
     }
 
 
+# ─── SIT / STAND UP / KNEEL / LIE DOWN / GET UP ────────────
+# One-shot height-driven actions. Each returns (pose, y_offset) where
+# y_offset is the total hips descent in px from the height the action
+# STARTED at (positive = down). Engine.step applies it to position.y and
+# moves the physics ground to follow.
+#
+# Geometry targets (hips rest height above floor ≈ 46 * scale px):
+#   sit:      hips ≈ 22 * scale above floor, knees up-forward, feet planted
+#   kneel:    knees ON floor, hips ≈ 18 * scale above floor, shins flat back
+#   lie_down: whole body horizontal ON floor, hips ≈ 2 * scale above floor
+# sit ↔ stand_up and lie_down ↔ get_up are exact reversals (shared pose
+# functions), so chaining them is perfectly continuous.
+
+def _ease(p: float) -> float:
+    """Smoothstep — zero velocity at both ends (no jerk)."""
+    return p * p * (3 - 2 * p)
+
+
+def _sit_pose(progress: float, scale: float):
+    """Shared sit pose: progress 0 = standing, 1 = seated on the floor.
+
+    Legs: thighs fold to nearly horizontal (world ~10°), shins drop to
+    plant the feet on the floor, torso relaxes back a few degrees, hands
+    come toward the knees. Feet land exactly on the floor line.
+    """
+    e = _ease(progress)
+    drop = 33.5 * scale * e            # hips down to ~50px above floor (ground sit)
+    # Per-side thigh/shin/foot deltas: the v3 hip bones are mirror images
+    # (99° vs 81°), so a shared delta folds the RIGHT leg the wrong way.
+    # Targets (world): thigh −24.6° (knees up, 15px above hips), shin 53°
+    # (feet planted), foot 15° (flat).
+    thigh_l = -141.6 * e
+    thigh_r = -89.6 * e
+    shin_l = 89.6 * e
+    shin_r = 68.6 * e
+    ankle = 4 * e
+    foot_l = -63 * e
+    foot_r = -13 * e                    # pose is _R(-25 - foot_r) → rel −38
+    spine = -10 * e                    # torso relaxes back
+    hip_spread = 10 * e
+    arm_fwd = 30 * e                   # upper arms swing forward
+    arm_bend = 38 * e                  # elbows fold (hands to knees)
+    return {
+        **_REST,
+        'hips': _R(0),
+        'spine': _R(-90) + _R(spine),
+        'neck': _R(-3 * e),
+        'head': _R(-3 * e),
+        'left_hip': _R(99 + hip_spread),
+        'right_hip': _R(81 - hip_spread),
+        'left_upper_leg': _R(8 + thigh_l),
+        'left_lower_leg': _R(-12 + shin_l),
+        'left_ankle': _R(ankle),
+        'left_foot': _R(25 + foot_l),
+        'right_upper_leg': _R(-6 + thigh_r),
+        'right_lower_leg': _R(9 + shin_r),
+        'right_ankle': -_R(ankle),
+        'right_foot': _R(-25 - foot_r),
+        'left_shoulder': _R(-132 + 5 * e),
+        'left_upper_arm': _R(-38 - arm_fwd),
+        'left_forearm': _R(25 + arm_bend),
+        'left_wrist': _R(arm_bend * 0.3),
+        'left_hand': _R(arm_bend * 0.4),
+        'right_shoulder': _R(132 - 5 * e),
+        'right_upper_arm': _R(38 + arm_fwd),
+        'right_forearm': _R(-25 - arm_bend),
+        'right_wrist': -_R(arm_bend * 0.3),
+        'right_hand': -_R(arm_bend * 0.4),
+    }, drop
+
+
+def gen_sit(t: float, params: Dict[str, Any] = None):
+    p = params or {}
+    dur = p.get('duration', 1.2)
+    scale = p.get('scale', 1.0)
+    return _sit_pose(min(t / dur, 1.0), scale)
+
+
+def gen_stand_up(t: float, params: Dict[str, Any] = None):
+    p = params or {}
+    dur = p.get('duration', 1.2)
+    scale = p.get('scale', 1.0)
+    pose, drop = _sit_pose(1.0 - min(t / dur, 1.0), scale)
+    return pose, drop - 33.5 * scale   # rise back to standing height
+
+
+def gen_kneel(t: float, params: Dict[str, Any] = None):
+    """Stand → both knees on the floor, shins flat behind, feet pointed.
+
+    Geometry: hips ≈ 36*scale above floor (thighs straight down, knees on
+    the floor), shins horizontal behind, feet flat on the floor.
+    """
+    p = params or {}
+    dur = p.get('duration', 1.0)
+    scale = p.get('scale', 1.0)
+    e = _ease(min(t / dur, 1.0))
+    drop = 24.0 * scale * e            # hips down so knees reach the floor
+    # Per-side: hip bones mirror (99°/81°) so deltas differ per side.
+    # Targets (world): thigh 90° (vertical, knees on floor), shin 180°.
+    thigh_l = -21 * e
+    thigh_r = 19 * e
+    shin_l = 102 * e
+    shin_r = 81 * e
+    ankle = 45 * e * (1 - e)           # foot flexes on the way down, flattens at rest
+    foot = -25 * e                     # feet flatten back along the floor
+    spine = -6 * e
+    arm_fwd = 14 * e
+    arm_bend = 16 * e
+    return {
+        **_REST,
+        'hips': _R(0),
+        'spine': _R(-90) + _R(spine),
+        'neck': _R(-2 * e),
+        'head': _R(-2 * e),
+        'left_hip': _R(99 + 4 * e),
+        'right_hip': _R(81 - 4 * e),
+        'left_upper_leg': _R(8 + thigh_l),
+        'left_lower_leg': _R(-12 + shin_l),
+        'left_ankle': _R(ankle),
+        'left_foot': _R(25 + foot),
+        'right_upper_leg': _R(-6 + thigh_r),
+        'right_lower_leg': _R(9 + shin_r),
+        'right_ankle': -_R(ankle),
+        'right_foot': _R(-25 - foot),
+        'left_shoulder': _R(-132 + 3 * e),
+        'left_upper_arm': _R(-38 - arm_fwd),
+        'left_forearm': _R(25 + arm_bend),
+        'left_wrist': _R(arm_bend * 0.3),
+        'left_hand': _R(arm_bend * 0.4),
+        'right_shoulder': _R(132 - 3 * e),
+        'right_upper_arm': _R(38 + arm_fwd),
+        'right_forearm': _R(-25 - arm_bend),
+        'right_wrist': -_R(arm_bend * 0.3),
+        'right_hand': -_R(arm_bend * 0.4),
+    }, drop
+
+
+def _lie_pose(progress: float, scale: float):
+    """Shared lie-down pose: progress 0 = standing, 1 = lying flat.
+
+    Stage 1 (0→0.35): fold into a sit (same leg geometry as _sit_pose).
+    Stage 2 (0.35→1): rotate the whole body back (hips root +90°) while
+    the hips descend to the floor; legs unfold along the body, arms swing
+    overhead. Exact reversal for get_up.
+    """
+    c1 = min(progress / 0.35, 1.0)
+    c2 = max((progress - 0.35) / 0.65, 0.0)
+    f = _ease(c1)     # sit-fold progress
+    r = _ease(c2)     # rotation progress
+    scale = float(scale)
+
+    drop = 33.5 * scale * f + 12.5 * scale * r      # → 46*scale (hips ON floor)
+    rot = 90.0 * r                                   # hips root rotation
+
+    # Legs blend: sit-fold values at the stage boundary → straight along
+    # the body (world ~180°) at rest. Hip bones ramp to exactly 90/90 so
+    # BOTH legs lie on the body axis; per-side rel offsets cancel the
+    # rest-pose asymmetry so each leg ends flat.
+    sit_thigh_l, sit_thigh_r = -141.6 * f, -89.6 * f
+    sit_shin_l, sit_shin_r = 89.6 * f, 68.6 * f
+    sit_ankle, sit_foot_l, sit_foot_r = 4 * f, -63 * f, -13 * f
+    thigh_l = sit_thigh_l * (1 - r) - 8 * r          # left thigh rel → 0
+    thigh_r = sit_thigh_r * (1 - r) + 6 * r          # right thigh rel → 0
+    shin_l = sit_shin_l * (1 - r) + 12 * r           # left shin rel → 0
+    shin_r = sit_shin_r * (1 - r) - 9 * r            # right shin rel → 0
+    ankle = sit_ankle * (1 - r)                      # ankle rel → 0
+    foot_l = sit_foot_l * (1 - r) - 25 * r           # feet flat (rel → 0)
+    foot_r = sit_foot_r * (1 - r) - 25 * r
+
+    # Arms blend: rest/sit → overhead along the body. Shoulders ALSO rotate
+    # from their hang-down rest (±132°) to point ALONG the body (−5°), so
+    # both arms attach at the same height when horizontal — otherwise the
+    # right shoulder tip hangs 60px below the left.
+    sit_arm_fwd, sit_arm_bend = 30 * f, 38 * f
+    arm_fwd_l = sit_arm_fwd * (1 - r) - 33 * r       # rel → −3 (world ~−8°, level)
+    arm_fwd_r = sit_arm_fwd * (1 - r) - 41 * r
+    arm_bend_l = sit_arm_bend * (1 - r) - 25 * r     # arms straighten along body
+    arm_bend_r = sit_arm_bend * (1 - r) - 25 * r
+    sh_l = (-132 + 5 * f) * (1 - r) - 5 * r          # −127 → −5 (along body)
+    sh_r = (132 - 5 * f) * (1 - r) - 5 * r
+
+    # Torso ends nearly flat (spine world ~5° — slight head-up is natural).
+    # Hip bones ramp continuously from the sit spread (109/71) to exactly
+    # 90/90 so both legs lie flat along the body axis.
+    spine = -10 * f * (1 - r) + 5 * r
+    hip_spread = 10 * f * (1 - r)
+    hip_fold = 9 * r
+
+    return {
+        **_REST,
+        'hips': _R(rot),
+        'spine': _R(-90) + _R(spine),
+        'neck': _R(-3 * f * (1 - r)),
+        'head': _R(-3 * f * (1 - r)),
+        'left_hip': _R(99 + hip_spread - hip_fold),
+        'right_hip': _R(81 - hip_spread + hip_fold),
+        'left_upper_leg': _R(8 + thigh_l),
+        'left_lower_leg': _R(-12 + shin_l),
+        'left_ankle': _R(ankle),
+        'left_foot': _R(25 + foot_l),
+        'right_upper_leg': _R(-6 + thigh_r),
+        'right_lower_leg': _R(9 + shin_r),
+        'right_ankle': -_R(ankle),
+        'right_foot': _R(-25 - foot_r),
+        'left_shoulder': _R(sh_l),
+        'left_upper_arm': _R(-38 - arm_fwd_l),
+        'left_forearm': _R(25 + arm_bend_l),
+        'left_wrist': _R(arm_bend_l * 0.3),
+        'left_hand': _R(arm_bend_l * 0.4),
+        'right_shoulder': _R(sh_r),
+        'right_upper_arm': _R(38 + arm_fwd_r),
+        'right_forearm': _R(-25 - arm_bend_r),
+        'right_wrist': -_R(arm_bend_r * 0.3),
+        'right_hand': -_R(arm_bend_r * 0.4),
+    }, drop
+
+
+def gen_lie_down(t: float, params: Dict[str, Any] = None):
+    p = params or {}
+    dur = p.get('duration', 1.4)
+    scale = p.get('scale', 1.0)
+    return _lie_pose(min(t / dur, 1.0), scale)
+
+
+def gen_get_up(t: float, params: Dict[str, Any] = None):
+    p = params or {}
+    dur = p.get('duration', 1.4)
+    scale = p.get('scale', 1.0)
+    pose, drop = _lie_pose(1.0 - min(t / dur, 1.0), scale)
+    return pose, drop - 46.0 * scale   # rise back to standing height
+
+
+# ─── TURN / CROUCH / SNEAK ────────────────────────────────
+
+def gen_turn(t: float, params: Dict[str, Any] = None):
+    """Turn around in place — the whole body rotates 180° about the hips.
+
+    The hips ROOT bone rotates (like lie_down), so the body spins through
+    the side view to face away. Arms swing out for balance mid-spin and
+    the knees flex slightly — reads as a pivot turn, not a robot swivel.
+    """
+    p = params or {}
+    dur = p.get('duration', 0.8)
+    e = _ease(min(t / dur, 1.0))
+    rot = 180.0 * e                       # 0° → 180° (faces away)
+    arm_swing = math.sin(e * math.pi) * 55  # out during the spin, back at ends
+    knee = math.sin(e * math.pi) * 14       # slight flex mid-turn
+    return {
+        **_REST,
+        'hips': _R(rot),
+        'spine': _R(-90) + _R(math.sin(e * math.pi) * 3),
+        'neck': _R(math.sin(e * math.pi) * 4),
+        'head': _R(math.sin(e * math.pi) * 4),
+        'left_shoulder': _R(-132 - arm_swing * 0.2),
+        'right_shoulder': _R(132 + arm_swing * 0.2),
+        'left_upper_arm': _R(-38 - arm_swing),
+        'left_forearm': _R(10 - arm_swing * 0.4),
+        'left_wrist': _R(-arm_swing * 0.2),
+        'left_hand': _R(-arm_swing * 0.3),
+        'right_upper_arm': _R(38 + arm_swing),
+        'right_forearm': _R(-10 + arm_swing * 0.4),
+        'right_wrist': _R(arm_swing * 0.2),
+        'right_hand': _R(arm_swing * 0.3),
+        'left_upper_leg': _R(8 + knee),
+        'left_lower_leg': _R(-12 - knee * 0.6),
+        'right_upper_leg': _R(-6 + knee),
+        'right_lower_leg': _R(9 - knee * 0.6),
+        'left_ankle': _R(knee * 0.3),
+        'right_ankle': -_R(knee * 0.3),
+    }
+
+
+def _crouch_pose(progress: float, scale: float):
+    """Shared crouch pose: progress 0 = standing, 1 = full stealth crouch.
+
+    Hips drop to ~74px above floor, thighs near-horizontal, shins steep,
+    feet flat, spine leans FORWARD ~30° (unlike sit which relaxes back),
+    arms hang low-forward (stealth ready).
+    """
+    e = _ease(progress)
+    drop = 27.5 * scale * e
+    # Targets (world): thigh −10° (knees just below hips), shin 60°, foot 15°
+    thigh_l = -127 * e
+    thigh_r = -75 * e
+    shin_l = 82 * e
+    shin_r = 61 * e
+    ankle = 4 * e
+    foot_l = -74 * e
+    foot_r = -24 * e
+    spine = 30 * e                        # forward lean (less negative = forward)
+    neck = 15 * e
+    head = 15 * e
+    arm_fwd = 45 * e                      # arms hang low-forward
+    arm_bend = 20 * e
+    return {
+        **_REST,
+        'hips': _R(0),
+        'spine': _R(-90) + _R(spine),
+        'neck': _R(neck),
+        'head': _R(head),
+        'left_hip': _R(99 + 6 * e),
+        'right_hip': _R(81 - 6 * e),
+        'left_upper_leg': _R(8 + thigh_l),
+        'left_lower_leg': _R(-12 + shin_l),
+        'left_ankle': _R(ankle),
+        'left_foot': _R(25 + foot_l),
+        'right_upper_leg': _R(-6 + thigh_r),
+        'right_lower_leg': _R(9 + shin_r),
+        'right_ankle': -_R(ankle),
+        'right_foot': _R(-25 - foot_r),
+        'left_shoulder': _R(-132 + 8 * e),
+        'left_upper_arm': _R(-38 - arm_fwd * 0.8),
+        'left_forearm': _R(25 + arm_bend),
+        'left_wrist': _R(arm_bend * 0.3),
+        'left_hand': _R(arm_bend * 0.4),
+        'right_shoulder': _R(132 - 8 * e),
+        'right_upper_arm': _R(38 + arm_fwd * 0.8),
+        'right_forearm': _R(-25 - arm_bend),
+        'right_wrist': -_R(arm_bend * 0.3),
+        'right_hand': -_R(arm_bend * 0.4),
+    }, drop
+
+
+def gen_crouch(t: float, params: Dict[str, Any] = None):
+    p = params or {}
+    dur = p.get('duration', 0.8)
+    scale = p.get('scale', 1.0)
+    return _crouch_pose(min(t / dur, 1.0), scale)
+
+
+def gen_sneak(t: float, params: Dict[str, Any] = None):
+    """Sneak — crouched slow walk (loop). Flat-footed, low, no bounce.
+
+    Legs use the same FABRIK IK gait as walk (feet plant, no slide) with a
+    short stride and tiny step height; the torso holds the crouch. Returns
+    (pose, y_offset) — crouch drop ramps in over the first 0.7s, then holds.
+    """
+    p = dict(params or {})
+    dur = p.get('duration', 1.5)
+    scale = p.get('scale', 1.0)
+    # Short, flat gait params for the shared walk solver
+    gait = dict(p)
+    gait.setdefault('speed', 0.7)
+    gait.setdefault('stride', 26)
+    gait.setdefault('step_height', 4)
+    gait.setdefault('bounce', 1.5)
+    pose = gen_walk(t, gait)
+    e = _ease(min(t / 0.7, 1.0))          # crouch ramp-in
+    # Override the upright walk torso with the sneak crouch
+    pose['spine'] = _R(-90) + _R(24 * e)
+    pose['neck'] = _R(12 * e)
+    pose['head'] = _R(12 * e)
+    pose['left_shoulder'] = _R(-132 + 8 * e)
+    pose['right_shoulder'] = _R(132 - 8 * e)
+    pose['left_upper_arm'] = _R(-38 - 40 * e)
+    pose['right_upper_arm'] = _R(38 + 40 * e)
+    pose['left_forearm'] = _R(30 + 20 * e)
+    pose['right_forearm'] = _R(-30 - 20 * e)
+    return pose, 27.5 * scale * e
+
+
+# ─── GESTURES: POINT / CLAP / NOD / SHAKE HEAD ─────────────
+
+def gen_point(t: float, params: Dict[str, Any] = None):
+    """Point — right arm raises to horizontal-forward and holds."""
+    p = params or {}
+    dur = p.get('duration', 1.0)
+    e = _ease(min(t / dur, 1.0))
+    raise_ph = _ease(min(t / 0.4, 1.0))   # arm up in the first 0.4s, then hold
+    return {
+        **_REST,
+        'spine': _R(-88) - _R(2 * raise_ph),
+        'neck': _R(4 * raise_ph),
+        'head': _R(4 * raise_ph),
+        'left_shoulder': _R(-132 + 10 * raise_ph),
+        'left_upper_arm': _R(-38 - 55 * raise_ph),   # left arm folds across
+        'left_forearm': _R(25 + 60 * raise_ph),
+        'left_wrist': _R(18 * raise_ph),
+        'left_hand': _R(25 * raise_ph),
+        'right_shoulder': _R(132 - 15 * raise_ph),
+        'right_upper_arm': _R(38 - 80 * raise_ph),   # right arm points out
+        'right_forearm': _R(-25 + 20 * raise_ph),    # straight index
+        'right_wrist': _R(-5 * raise_ph),
+        'right_hand': _R(-10 * raise_ph),
+        'left_hip': _R(99 + 3 * raise_ph),
+        'right_hip': _R(81 - 3 * raise_ph),
+        'left_ankle': _R(3 * raise_ph),
+        'right_ankle': -_R(3 * raise_ph),
+    }
+
+
+def gen_clap(t: float, params: Dict[str, Any] = None):
+    """Clap — hands meet in front of the chest three times (t≈0.2/0.5/0.8)."""
+    p = params or {}
+    dur = p.get('duration', 1.2)
+    if t < 0.95:
+        gap = 0.15 + 0.85 * abs(math.sin(math.pi * (t - 0.2) / 0.3))
+    else:
+        gap = 0.15                       # hold the last clap
+    # gap: 0.15 = hands together (clap), 1.0 = arms spread
+    spread = 30 * (gap - 0.15) / 0.85    # 0..30° swing out from the clap line
+    return {
+        **_REST,
+        'spine': _R(-88),
+        'neck': _R(3),
+        'head': _R(3),
+        'left_shoulder': _R(-132 + 12),
+        'left_upper_arm': _R(-38 - 47 - spread),      # elbows out, hands to center
+        'left_forearm': _R(25 + 70 - spread * 0.7),   # forearms fold up
+        'left_wrist': _R(30 - spread * 0.6),
+        'left_hand': _R(35 - spread * 0.6),
+        'right_shoulder': _R(132 - 12),
+        'right_upper_arm': _R(38 + 47 + spread),
+        'right_forearm': _R(-25 - 70 + spread * 0.7),
+        'right_wrist': -_R(30 - spread * 0.6),
+        'right_hand': -_R(35 - spread * 0.6),
+        'left_hip': _R(99 + 3),
+        'right_hip': _R(81 - 3),
+        'left_ankle': _R(3),
+        'right_ankle': -_R(3),
+    }
+
+
+def gen_nod(t: float, params: Dict[str, Any] = None):
+    """Nod yes — head dips down and up three times, slight torso sway."""
+    p = params or {}
+    dur = p.get('duration', 1.0)
+    prog = min(t / dur, 1.0)
+    # 3 nods at t≈0.15, 0.45, 0.75 — head drops ~20° each time
+    cycle = 0.3
+    if t < 0.9:
+        nod_t = (t % cycle) / cycle
+        down = 1.0 - math.cos(nod_t * 2 * math.pi)   # 0 → 1 → 0 per nod
+    else:
+        down = 0.0
+    return {
+        **_REST,
+        'spine': _R(-88) - _R(4 * down),
+        'neck': _R(16 * down),
+        'head': _R(16 * down),
+        'left_shoulder': _R(-132 + 3 * down),
+        'right_shoulder': _R(132 - 3 * down),
+        'left_upper_arm': _R(-38 + math.sin(t * 3) * 1.5),
+        'right_upper_arm': _R(38 + math.sin(t * 3) * 1.5),
+        'left_forearm': _R(25 + math.sin(t * 3) * 1.5),
+        'right_forearm': _R(-25 - math.sin(t * 3) * 1.5),
+        'left_wrist': _R(math.sin(t * 3) * 1.0),
+        'right_wrist': -_R(math.sin(t * 3) * 1.0),
+        'left_hip': _R(99 + 2 * down),
+        'right_hip': _R(81 - 2 * down),
+        'left_ankle': _R(2 * down),
+        'right_ankle': -_R(2 * down),
+    }
+
+
+def gen_shake_head(t: float, params: Dict[str, Any] = None):
+    """Shake head no — head tilts left-right three times (2D 'no')."""
+    p = params or {}
+    dur = p.get('duration', 1.0)
+    prog = min(t / dur, 1.0)
+    if t < 0.9:
+        shake = math.sin(t * (2 * math.pi / 0.3)) * 18   # ±18° tilt
+    else:
+        shake = 0.0
+    return {
+        **_REST,
+        'spine': _R(-88) - _R(2 * abs(shake) / 18),
+        'neck': _R(shake * 0.4),
+        'head': _R(shake),
+        'left_shoulder': _R(-132 + 2 * abs(shake) / 18),
+        'right_shoulder': _R(132 - 2 * abs(shake) / 18),
+        'left_upper_arm': _R(-38 + math.sin(t * 3) * 1.5),
+        'right_upper_arm': _R(38 + math.sin(t * 3) * 1.5),
+        'left_forearm': _R(25 + math.sin(t * 3) * 1.5),
+        'right_forearm': _R(-25 - math.sin(t * 3) * 1.5),
+        'left_wrist': _R(math.sin(t * 3) * 1.0),
+        'right_wrist': -_R(math.sin(t * 3) * 1.0),
+        'left_hip': _R(99 + 2 * abs(shake) / 18),
+        'right_hip': _R(81 - 2 * abs(shake) / 18),
+        'left_ankle': _R(2 * abs(shake) / 18),
+        'right_ankle': -_R(2 * abs(shake) / 18),
+    }
+
+
+# ─── HANDS: PICK UP / PUT DOWN / THROW / CATCH ─────────────
+
+def _pick_pose(progress: float, scale: float):
+    """Shared pick-up pose: progress 0 = standing empty-handed,
+    1 = standing HOLDING (arm bent at chest). Stages:
+      0.00–0.50  bend down, right arm reaches the floor (grab)
+      0.50–1.00  rise, arm comes up bent (now holding)
+    put_down is the exact reverse (progress 1 = holding, 0 = standing free).
+    """
+    e = _ease(progress)
+    # Stage 1: reach down (0→1 of the reach), Stage 2: rise (1→0 of reach)
+    if progress < 0.5:
+        reach = _ease(progress / 0.5)
+        rise = 0.0
+    else:
+        reach = 1.0
+        rise = _ease((progress - 0.5) / 0.5)
+    drop = 20.0 * scale * (reach * (1 - rise))   # deepest at the grab, back up
+    spine = 35 * reach * (1 - rise)              # bend forward to reach
+    # Right arm: extended down at the grab → bent at the chest when holding
+    arm_reach = reach * (1 - rise)               # 1 at grab, 0 when holding
+    arm_hold = rise                              # 1 when holding
+    thigh = -50 * reach * (1 - rise)             # knees bend on the way down
+    shin = 40 * reach * (1 - rise)
+    ankle = 3 * reach * (1 - rise)
+    foot = -30 * reach * (1 - rise)
+    return {
+        **_REST,
+        'hips': _R(0),
+        'spine': _R(-90) + _R(spine),
+        'neck': _R(spine * 0.4),
+        'head': _R(spine * 0.4),
+        'left_hip': _R(99 + 5 * reach * (1 - rise)),
+        'right_hip': _R(81 - 5 * reach * (1 - rise)),
+        'left_upper_leg': _R(8 + thigh),
+        'left_lower_leg': _R(-12 + shin),
+        'left_ankle': _R(ankle),
+        'left_foot': _R(25 + foot),
+        'right_upper_leg': _R(-6 + thigh),
+        'right_lower_leg': _R(9 + shin),
+        'right_ankle': -_R(ankle),
+        'right_foot': _R(-25 - foot),
+        'left_shoulder': _R(-132 + 15 * reach * (1 - rise)),
+        'left_upper_arm': _R(-38 - 90 * reach * (1 - rise) - 15 * arm_hold),  # left arm swings back on the reach, slight guard when holding
+        'left_forearm': _R(25 + 30 * reach * (1 - rise) + 25 * arm_hold),
+        'left_wrist': _R(15 * reach * (1 - rise)),
+        'left_hand': _R(20 * reach * (1 - rise)),
+        'right_shoulder': _R(132 - 10 * arm_hold),
+        'right_upper_arm': _R(38 + 95 * arm_reach - 60 * arm_hold),  # down at grab, bent at chest when holding
+        'right_forearm': _R(-25 + 55 * arm_reach + 40 * arm_hold),
+        'right_wrist': -_R(20 * arm_reach + 10 * arm_hold),
+        'right_hand': -_R(25 * arm_reach + 15 * arm_hold),
+    }, drop
+
+
+def gen_pick_up(t: float, params: Dict[str, Any] = None):
+    p = params or {}
+    dur = p.get('duration', 1.4)
+    scale = p.get('scale', 1.0)
+    return _pick_pose(min(t / dur, 1.0), scale)
+
+
+def gen_put_down(t: float, params: Dict[str, Any] = None):
+    """Reverse of pick_up: starts holding, ends standing empty-handed."""
+    p = params or {}
+    dur = p.get('duration', 1.4)
+    scale = p.get('scale', 1.0)
+    pose, drop = _pick_pose(1.0 - min(t / dur, 1.0), scale)
+    return pose, drop - 20.0 * scale
+
+
+def gen_throw(t: float, params: Dict[str, Any] = None):
+    """Throw — wind up (arm back, body coils), whip forward, follow through."""
+    p = params or {}
+    dur = p.get('duration', 1.0)
+    prog = min(t / dur, 1.0)
+    if prog < 0.35:                       # windup
+        ph = _ease(prog / 0.35)
+        arm_back = 110 * ph               # right arm swings back-up
+        twist = -22 * ph                  # chest coils back
+        lean = -6 * ph
+    elif prog < 0.7:                      # release
+        ph = _ease((prog - 0.35) / 0.35)
+        arm_back = 110 * (1 - ph) - 130 * ph   # whips forward-overhead
+        twist = -22 * (1 - ph) + 26 * ph
+        lean = -6 * (1 - ph) + 10 * ph
+    else:                                 # follow through
+        ph = _ease((prog - 0.7) / 0.3)
+        arm_back = -20 + 30 * ph          # arm follows down-forward
+        twist = 26 * (1 - ph)
+        lean = 10 * (1 - ph) + 14 * ph
+    return {
+        **_REST,
+        'spine': _R(-90) + _R(lean),
+        'chest': _R(twist),
+        'hips': -_R(twist * 0.5),
+        'neck': _R(lean * 0.5),
+        'head': _R(lean * 0.5),
+        'left_shoulder': _R(-132 + 8),
+        'left_upper_arm': _R(-38 - 20 - twist * 0.8),    # non-throwing arm tucks
+        'left_forearm': _R(25 + 40),
+        'left_wrist': _R(15),
+        'left_hand': _R(20),
+        'right_shoulder': _R(132 - 10),
+        'right_upper_arm': _R(38 - arm_back),
+        'right_forearm': _R(-25 - arm_back * 0.55),
+        'right_wrist': -_R(arm_back * 0.25),
+        'right_hand': -_R(arm_back * 0.3),
+        'left_hip': _R(99 + twist * 0.4),
+        'right_hip': _R(81 - twist * 0.4),
+        'left_ankle': _R(4),
+        'right_ankle': -_R(4),
+    }
+
+
+def gen_catch(t: float, params: Dict[str, Any] = None):
+    """Catch — arms raise ready, hands open, then absorb the impact."""
+    p = params or {}
+    dur = p.get('duration', 1.0)
+    prog = min(t / dur, 1.0)
+    if prog < 0.3:                        # arms up, ready
+        ph = _ease(prog / 0.3)
+        arm_up = 85 * ph
+        ready = ph
+    elif prog < 0.6:                      # catch + absorb
+        ph = _ease((prog - 0.3) / 0.3)
+        arm_up = 85 * (1 - ph * 0.4)      # arms pull back slightly
+        ready = 1.0 - 0.3 * ph
+    else:                                 # hold
+        arm_up = 51.0
+        ready = 0.7
+    return {
+        **_REST,
+        'spine': _R(-88) - _R(4 * (1 - ready) + 2),
+        'neck': _R(6 * (1 - ready)),
+        'head': _R(6 * (1 - ready)),
+        'left_shoulder': _R(-132 + 12),
+        'left_upper_arm': _R(-38 - arm_up),
+        'left_forearm': _R(25 + 60 + 20 * (1 - ready)),
+        'left_wrist': _R(35 * ready),
+        'left_hand': _R(40 * ready),      # hand open
+        'right_shoulder': _R(132 - 12),
+        'right_upper_arm': _R(38 + arm_up),
+        'right_forearm': _R(-25 - 60 - 20 * (1 - ready)),
+        'right_wrist': -_R(35 * ready),
+        'right_hand': -_R(40 * ready),
+        'left_hip': _R(99 + 3),
+        'right_hip': _R(81 - 3),
+        'left_ankle': _R(3),
+        'right_ankle': -_R(3),
+    }
+
+
+# ─── STRENGTH / COMBAT: PUSH / PULL / BLOCK / DODGE ────────
+
+def gen_push(t: float, params: Dict[str, Any] = None):
+    """Push — load arms at the chest, extend both forward, hold."""
+    p = params or {}
+    dur = p.get('duration', 1.0)
+    prog = min(t / dur, 1.0)
+    if prog < 0.3:
+        ph = _ease(prog / 0.3)
+        ext = 0.0
+        lean = -6 * ph                    # load back
+    elif prog < 0.7:
+        ph = _ease((prog - 0.3) / 0.4)
+        ext = ph
+        lean = -6 * (1 - ph) + 12 * ph    # drive forward
+    else:
+        ext = 1.0
+        lean = 12.0
+    return {
+        **_REST,
+        'spine': _R(-90) + _R(lean),
+        'neck': _R(lean * 0.5),
+        'head': _R(lean * 0.5),
+        'left_shoulder': _R(-132 + 14 * ext),
+        'left_upper_arm': _R(-38 - 60 * ext),      # arms drive forward
+        'left_forearm': _R(25 + 75 * ext),
+        'left_wrist': _R(30 * ext),
+        'left_hand': _R(35 * ext),
+        'right_shoulder': _R(132 - 14 * ext),
+        'right_upper_arm': _R(38 + 60 * ext),
+        'right_forearm': _R(-25 - 75 * ext),
+        'right_wrist': -_R(30 * ext),
+        'right_hand': -_R(35 * ext),
+        'left_hip': _R(99 + 3),
+        'right_hip': _R(81 - 3),
+        'left_ankle': _R(3 * ext),
+        'right_ankle': -_R(3 * ext),
+    }
+
+
+def gen_pull(t: float, params: Dict[str, Any] = None):
+    """Pull — arms extended, haul back to the chest, lean back, hold."""
+    p = params or {}
+    dur = p.get('duration', 1.0)
+    prog = min(t / dur, 1.0)
+    if prog < 0.3:
+        ph = _ease(prog / 0.3)
+        retract = 0.0
+        lean = 10 * ph                    # brace into the pull
+    elif prog < 0.7:
+        ph = _ease((prog - 0.3) / 0.4)
+        retract = ph
+        lean = 10 * (1 - ph) - 8 * ph     # haul back
+    else:
+        retract = 1.0
+        lean = -8.0
+    return {
+        **_REST,
+        'spine': _R(-90) + _R(lean),
+        'neck': _R(lean * 0.5),
+        'head': _R(lean * 0.5),
+        'left_shoulder': _R(-132 + 14 * (1 - retract)),
+        'left_upper_arm': _R(-38 - 60 * (1 - retract) + 15 * retract),  # arms pull IN
+        'left_forearm': _R(25 + 75 * (1 - retract) - 55 * retract),
+        'left_wrist': _R(30 * (1 - retract)),
+        'left_hand': _R(35 * (1 - retract)),
+        'right_shoulder': _R(132 - 14 * (1 - retract)),
+        'right_upper_arm': _R(38 + 60 * (1 - retract) - 15 * retract),
+        'right_forearm': _R(-25 - 75 * (1 - retract) + 55 * retract),
+        'right_wrist': -_R(30 * (1 - retract)),
+        'right_hand': -_R(35 * (1 - retract)),
+        'left_hip': _R(99 + 3),
+        'right_hip': _R(81 - 3),
+        'left_ankle': _R(3),
+        'right_ankle': -_R(3),
+    }
+
+
+def gen_block(t: float, params: Dict[str, Any] = None):
+    """Block — both forearms up in a guard, fists at face level, hold."""
+    p = params or {}
+    dur = p.get('duration', 0.6)
+    e = _ease(min(t / dur, 1.0))
+    return {
+        **_REST,
+        'spine': _R(-92) - _R(3 * e),
+        'neck': _R(4 * e),
+        'head': _R(4 * e),
+        'left_shoulder': _R(-132 + 18 * e),
+        'left_upper_arm': _R(-38 - 70 * e),        # elbows out, guard up
+        'left_forearm': _R(25 + 95 * e),           # forearm vertical
+        'left_wrist': _R(25 * e),
+        'left_hand': _R(30 * e),
+        'right_shoulder': _R(132 - 18 * e),
+        'right_upper_arm': _R(38 + 70 * e),
+        'right_forearm': _R(-25 - 95 * e),
+        'right_wrist': -_R(25 * e),
+        'right_hand': -_R(30 * e),
+        'left_upper_leg': _R(8 + 16 * e),          # slight stance drop
+        'left_lower_leg': _R(-12 - 18 * e),
+        'right_upper_leg': _R(-6 + 16 * e),
+        'right_lower_leg': _R(9 - 18 * e),
+        'left_ankle': _R(6 * e),
+        'right_ankle': -_R(6 * e),
+    }
+
+
+def gen_dodge(t: float, params: Dict[str, Any] = None):
+    """Dodge — quick drop, lean right, arms up, recover."""
+    p = params or {}
+    dur = p.get('duration', 0.7)
+    prog = min(t / dur, 1.0)
+    if prog < 0.35:
+        ph = _ease(prog / 0.35)
+        duck = ph
+    elif prog < 0.7:
+        ph = _ease((prog - 0.35) / 0.35)
+        duck = 1.0 - ph
+    else:
+        duck = 0.0
+    tilt = 14 * duck                       # body tilts to the right
+    arm_up = 70 * duck
+    return {
+        **_REST,
+        'hips': _R(tilt),
+        'spine': _R(-90) + _R(-8 * duck),
+        'neck': _R(-5 * duck),
+        'head': _R(-5 * duck),
+        'left_shoulder': _R(-132 + 10 * duck),
+        'left_upper_arm': _R(-38 - arm_up),
+        'left_forearm': _R(25 + 40 * duck),
+        'left_wrist': _R(15 * duck),
+        'left_hand': _R(20 * duck),
+        'right_shoulder': _R(132 - 10 * duck),
+        'right_upper_arm': _R(38 + arm_up * 0.7),
+        'right_forearm': _R(-25 - 30 * duck),
+        'right_wrist': -_R(15 * duck),
+        'right_hand': -_R(20 * duck),
+        'left_upper_leg': _R(8 + 20 * duck),       # crouch with the duck
+        'left_lower_leg': _R(-12 - 22 * duck),
+        'right_upper_leg': _R(-6 + 20 * duck),
+        'right_lower_leg': _R(9 - 22 * duck),
+        'left_ankle': _R(6 * duck),
+        'right_ankle': -_R(6 * duck),
+    }
+
+
+# ─── EMOTIONS (loops): HAPPY / SAD / ANGRY / SCARED ────────
+# Loops with duration 2.0; all sines use ω = π·k so the phase wraps
+# cleanly at t = 2s (no pop). Body-language posture + micro-motion.
+
+def gen_happy(t: float, params: Dict[str, Any] = None):
+    p = params or {}
+    dur = p.get('duration', 2.0)
+    s = (t % dur) * 1.0
+    bob = math.sin(math.pi * s)            # gentle 2s bounce
+    return {
+        **_REST,
+        'spine': _R(-84) + _R(bob * 1.5),          # chest up
+        'chest': _R(bob * 1.5),
+        'neck': _R(-6 + bob * 1.0),
+        'head': _R(-6 + bob * 1.0),
+        'left_shoulder': _R(-132 - 6 - bob * 2),
+        'right_shoulder': _R(132 + 6 + bob * 2),
+        'left_upper_arm': _R(-38 - 50 - bob * 3),  # arms out
+        'left_forearm': _R(25 + 30 + bob * 2),
+        'left_wrist': _R(10 + bob * 2),
+        'left_hand': _R(15 + bob * 3),
+        'right_upper_arm': _R(38 + 50 + bob * 3),
+        'right_forearm': _R(-25 - 30 - bob * 2),
+        'right_wrist': -_R(10 + bob * 2),
+        'right_hand': -_R(15 + bob * 3),
+        'left_hip': _R(99 + 4),
+        'right_hip': _R(81 - 4),
+        'left_ankle': _R(3 + bob * 1.5),
+        'right_ankle': -_R(3 + bob * 1.5),
+    }
+
+
+def gen_sad(t: float, params: Dict[str, Any] = None):
+    p = params or {}
+    dur = p.get('duration', 2.0)
+    s = (t % dur) * 1.0
+    sigh = math.sin(math.pi * s * 0.5)     # slow 4s... use πs → 2s cycle
+    sigh = math.sin(math.pi * s)
+    return {
+        **_REST,
+        'spine': _R(-96) + _R(sigh * 1.0),         # slumped
+        'chest': _R(sigh * 1.0),
+        'neck': _R(14 + sigh * 2),
+        'head': _R(14 + sigh * 2),                 # head down
+        'left_shoulder': _R(-132 + 14 + sigh * 2), # shrugged up
+        'right_shoulder': _R(132 - 14 - sigh * 2),
+        'left_upper_arm': _R(-38 + 12 + sigh * 1.5),   # arms hang limp
+        'left_forearm': _R(25 + 10 + sigh * 1.5),
+        'left_wrist': _R(5 + sigh * 1.0),
+        'left_hand': _R(8 + sigh * 1.0),
+        'right_upper_arm': _R(38 - 12 - sigh * 1.5),
+        'right_forearm': _R(-25 - 10 - sigh * 1.5),
+        'right_wrist': -_R(5 + sigh * 1.0),
+        'right_hand': -_R(8 + sigh * 1.0),
+        'left_hip': _R(99 + 5),
+        'right_hip': _R(81 - 5),
+        'left_ankle': _R(2 + sigh),
+        'right_ankle': -_R(2 + sigh),
+    }
+
+
+def gen_angry(t: float, params: Dict[str, Any] = None):
+    p = params or {}
+    dur = p.get('duration', 2.0)
+    s = (t % dur) * 1.0
+    tremble = math.sin(math.pi * s * 4)    # fast 0.5s tremble, wraps at 2s
+    return {
+        **_REST,
+        'spine': _R(-78) + _R(tremble * 0.8),      # leaning in, tense
+        'chest': _R(5),
+        'neck': _R(-8 + tremble * 1.0),
+        'head': _R(-8 + tremble * 1.0),            # head forward
+        'left_shoulder': _R(-132 - 4 + tremble * 1.5),
+        'right_shoulder': _R(132 + 4 - tremble * 1.5),
+        'left_upper_arm': _R(-38 - 30 + tremble * 2),
+        'left_forearm': _R(25 + 50 + tremble * 2),
+        'left_wrist': _R(20 + tremble * 1.5),
+        'left_hand': _R(-15 + tremble * 1.5),      # fist curled
+        'right_upper_arm': _R(38 + 30 - tremble * 2),
+        'right_forearm': _R(-25 - 50 - tremble * 2),
+        'right_wrist': -_R(20 + tremble * 1.5),
+        'right_hand': -_R(-15 + tremble * 1.5),
+        'left_hip': _R(99 + 3),
+        'right_hip': _R(81 - 3),
+        'left_upper_leg': _R(8 + 10),
+        'left_lower_leg': _R(-12 - 12),
+        'right_upper_leg': _R(-6 + 10),
+        'right_lower_leg': _R(9 - 12),
+        'left_ankle': _R(4 + tremble),
+        'right_ankle': -_R(4 + tremble),
+    }
+
+
+def gen_scared(t: float, params: Dict[str, Any] = None):
+    p = params or {}
+    dur = p.get('duration', 2.0)
+    s = (t % dur) * 1.0
+    tremble = math.sin(math.pi * s * 4)
+    return {
+        **_REST,
+        'spine': _R(-95) + _R(tremble * 1.0),      # recoiling
+        'neck': _R(-12 + tremble * 1.0),
+        'head': _R(-12 + tremble * 1.0),           # head back
+        'left_shoulder': _R(-132 + 20 + tremble * 1.5),
+        'right_shoulder': _R(132 - 20 - tremble * 1.5),
+        'left_upper_arm': _R(-38 - 75 + tremble * 2),   # arms up in front
+        'left_forearm': _R(25 + 85 + tremble * 2),
+        'left_wrist': _R(35 + tremble * 1.5),
+        'left_hand': _R(40 + tremble * 1.5),       # hands open
+        'right_upper_arm': _R(38 + 75 - tremble * 2),
+        'right_forearm': _R(-25 - 85 - tremble * 2),
+        'right_wrist': -_R(35 + tremble * 1.5),
+        'right_hand': -_R(40 + tremble * 1.5),
+        'left_upper_leg': _R(8 + 18),
+        'left_lower_leg': _R(-12 - 20),
+        'right_upper_leg': _R(-6 + 18),
+        'right_lower_leg': _R(9 - 20),
+        'left_ankle': _R(5 + tremble),
+        'right_ankle': -_R(5 + tremble),
+    }
+
+
 # ─── REGISTRY ──────────────────────────────────────────────
 
 # Each entry: (generator_fn, has_position_offset, default_params)
@@ -561,7 +1489,12 @@ GENERATORS = {
     'idle':  (gen_idle,  False, {'speed': 1.0}),
     'walk':  (gen_walk,  True,  {'speed': 1.2, 'stride': 55, 'step_height': 12, 'bounce': 3}),
     'run':   (gen_run,   True,  {'speed': 2.0, 'stride': 80, 'step_height': 18, 'bounce': 8}),
-    'jump':  (gen_jump,  False, {'height': 50, 'duration': 0.8}),
+    'jump':  (gen_jump,  False, {'height': 50, 'duration': 1.1}),
+    'sit':       (gen_sit,       False, {'duration': 1.2}),
+    'stand_up':  (gen_stand_up,  False, {'duration': 1.2}),
+    'kneel':     (gen_kneel,     False, {'duration': 1.0}),
+    'lie_down':  (gen_lie_down,  False, {'duration': 1.4}),
+    'get_up':    (gen_get_up,    False, {'duration': 1.4}),
     'wave':  (gen_wave,  False, {'duration': 2.0}),
     'punch': (gen_punch, False, {'duration': 0.4}),
     'fall':  (gen_fall,  False, {'duration': 0.8}),
@@ -590,6 +1523,8 @@ if __name__ == '__main__':
     # never changes AND never leaves rest is a frozen joint).
     for name, (fn, _, defaults) in GENERATORS.items():
         samples = [fn(t * 0.05, defaults) for t in range(40)]
+        # Height-driven actions return (pose, y_offset); unwrap
+        samples = [s[0] if isinstance(s, tuple) else s for s in samples]
         for pose in samples:
             assert set(pose) == bone_names, f"{name} missing {bone_names - set(pose)}"
             assert all(math.isfinite(v) for v in pose.values()), f"{name} non-finite"

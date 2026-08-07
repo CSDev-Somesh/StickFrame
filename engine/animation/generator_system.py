@@ -13,6 +13,13 @@ from typing import Dict, Any
 from engine.core.components import ProceduralPlayer, Skeleton, Position
 from engine.animation.generators import get_generator, GENERATORS
 
+# Height-driven actions (sit/lie/kneel family): their generators return
+# (pose, y_offset) — y_offset is the total hips descent in px from the
+# height the action started at. Engine.step applies it to position.y and
+# moves the physics ground to follow, so the body lowers/raises without
+# the ground clamp fighting it.
+HEIGHT_ACTIONS = frozenset({'sit', 'stand_up', 'kneel', 'lie_down', 'get_up'})
+
 
 class GeneratorSystem:
     """Processes procedural animation generators every frame.
@@ -65,6 +72,12 @@ class GeneratorSystem:
                 pose, y_offset = result
             else:
                 pose = result
+
+            # Store the height offset for height-driven actions (Engine.step
+            # applies it to position.y in the 2.7 loop). Non-height actions
+            # leave it None so the loop skips them.
+            if player.current_action in HEIGHT_ACTIONS:
+                player._height_offset = y_offset
             
             # Action blending — smooth crossfade when switching actions
             if player.blend_from_pose is not None:
@@ -120,6 +133,14 @@ class GeneratorSystem:
         player.position_offset_y = 0.0
         player._prev_offset_x = 0.0
         player._prev_offset_y = 0.0
+        # Reset delayed-impulse state (jump anticipation)
+        player.impulse_vy = 0.0
+        player.impulse_time = 0.0
+        player.impulse_fired = False
+        # Reset height tracking — the new action captures its own start
+        # height on its first processed frame
+        player._height_base = None
+        player._height_offset = None
         
         # Non-looping actions
         _, _, defaults = get_generator(action_name)

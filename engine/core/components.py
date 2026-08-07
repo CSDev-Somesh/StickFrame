@@ -138,6 +138,19 @@ class ProceduralPlayer:
     blend_timer: float = 0.0
     blend_duration: float = 0.12
     _prev_frame_pose: Optional[Dict[str, float]] = None
+    # Delayed physics impulse (jump anticipation): the velocity fires when
+    # player.time crosses impulse_time, so the crouch pose reads BEFORE the
+    # body launches. Without this, the body lifts while the pose is still
+    # crouching and the anticipation is lost.
+    impulse_vy: float = 0.0
+    impulse_time: float = 0.0
+    impulse_fired: bool = False
+    # Height-driven actions (sit/lie/kneel family): the generator returns
+    # (pose, y_offset) — total hips descent from the height the action
+    # STARTED at. _height_base is captured on the first processed frame so
+    # chained actions (sit → stand_up) continue from the current height.
+    _height_base: Optional[float] = None
+    _height_offset: Optional[float] = None
 
 
 # ─── Physics Components ──────────────────────────────────────
@@ -150,6 +163,7 @@ class PhysicsBody:
     restitution: float = 0.3  # bounciness
     friction: float = 0.5
     ground_offset: float = 0.0  # feet distance below entity origin (hips) — used by ground collision
+    rest_ground_offset: float = 0.0  # standing ground_offset (rest pose) — restored when a height-driven action ends
 
 @dataclass
 class Collider:
