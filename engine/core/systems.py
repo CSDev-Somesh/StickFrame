@@ -204,6 +204,14 @@ class CameraSystem:
         if not cam.follow_y:
             target_y = cam.current_y
 
+        # Pan targets override follow — camera lerps to the pan point with the
+        # same smooth curve as entity follow. Only axes with an explicit pan
+        # target move; the other axis keeps its follow/hold behavior.
+        if cam.pan_target_x is not None:
+            target_x = cam.pan_target_x
+        if cam.pan_target_y is not None:
+            target_y = cam.pan_target_y
+
         # 2. Smooth follow — lerp current position toward target
         if dt > 0 and cam.smooth_speed > 0:
             lerp = 1.0 - math.exp(-cam.smooth_speed * dt)
@@ -248,7 +256,8 @@ class RenderSystem:
         self.height = height
     
     def render_frame(self, entities: list, bg_color: str = "#FFFFFF",
-                     viewport_offset: tuple = (0, 0), zoom: float = 1.0) -> Image.Image:
+                     viewport_offset: tuple = (0, 0), zoom: float = 1.0,
+                     facings: dict = None) -> Image.Image:
         """Render all visible entities into a single frame.
 
         Args:
@@ -256,6 +265,8 @@ class RenderSystem:
             bg_color: Background color
             viewport_offset: (offset_x, offset_y) to apply to all world coords
             zoom: Viewport zoom factor
+            facings: Optional dict mapping entity_id -> 'left'/'right'. When
+                omitted, every character renders facing right (legacy).
 
         Returns:
             Rendered PIL Image
@@ -266,9 +277,11 @@ class RenderSystem:
         for ent_id, pos, skel, app, rend in entities:
             if not rend.visible:
                 continue
+            facing = (facings or {}).get(ent_id, 'right')
             # Apply viewport transform: screen = world * zoom + offset
             draw_stickman(draw, skel, app, pos,
-                          viewport_offset=viewport_offset, zoom=zoom)
+                          viewport_offset=viewport_offset, zoom=zoom,
+                          facing=facing)
 
         return img
 
@@ -435,6 +448,13 @@ class Engine:
         
         # 2.7 Apply procedural position offsets
         for ent_id, player in self.get_entities_with('procedural_player'):
+            # When velocity_move is active (timeline x= with walk/run/sprint),
+            # the generator's own X offset is suppressed so the character
+            # doesn't double-move (velocity + stride). The Y bob is kept
+            # for life.
+            if player.velocity_move:
+                player.position_offset_x = 0.0
+                player._prev_offset_x = 0.0
             if player.position_offset_x != 0 or player.position_offset_y != 0:
                 pos = self.entities[ent_id].get('position')
                 if pos:
@@ -469,6 +489,35 @@ class Engine:
         phys_entities = self.get_entities_with('position', 'velocity', 'physics')
         self.physics.process(dt, phys_entities)
 
+        # 3.5 Stop-at-target — check if any character reached their
+        # velocity-move target and stop them.
+        for ent_id, comps in self.entities.items():
+            target = comps.get('_movement_target')
+            if target is not None:
+                pos = comps.get('position')
+                vel = comps.get('velocity')
+                if pos and vel:
+                    if abs(pos.x - target) < 5:
+                        vel.vx = 0
+                        pos.x = target  # snap to exact position
+                        comps['_movement_target'] = None
+                        comps['_movement_speed'] = None
+                        # Keep velocity_move=True: the loop action (walk/run)
+                        # keeps playing in place with its X stride suppressed,
+                        # so the character stays exactly at the target. If we
+                        # cleared it here, the generator would resume its own
+                        # accumulated position offset (time × speed × stride)
+                        # and the character would JUMP forward and keep moving.
+                        # The next timeline event (e.g. idle) resets the player.
+                    else:
+                        # Counteract friction: keep the movement velocity at
+                        # its set speed while traveling to the target
+                        # (otherwise vx decays ~1.7%/frame at 30fps and the
+                        # character stalls far short of the target).
+                        mspd = comps.get('_movement_speed')
+                        if mspd:
+                            vel.vx = mspd
+
         # 4. Forward kinematics for all skeletons (uses updated positions)
         skel_entities = self.get_entities_with('position', 'skeleton')
         for ent_id, pos, skel in skel_entities:
@@ -485,10 +534,15 @@ class Engine:
 
         # 5. Render
         render_entities = self.get_entities_with('position', 'skeleton', 'appearance', 'renderable')
+        # Facing map so the renderer mirrors characters that turned around
+        facing_map = {eid: comps['facing'].direction
+                      for eid, comps in self.entities.items()
+                      if 'facing' in comps}
         frame = self.renderer.render_frame(render_entities,
                                          viewport_offset=(viewport_offset_x, viewport_offset_y),
                                          zoom=zoom,
-                                         bg_color=self.bg_color)
+                                         bg_color=self.bg_color,
+                                         facings=facing_map)
 
         # 5.5 Dialogue bubbles — draw above characters with active speech
         dlg_entities = self.get_entities_with('position', 'skeleton', 'dialogue')

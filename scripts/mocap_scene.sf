@@ -1,0 +1,21 @@
+# Mocap integration test - punch and wave are NOT built-in .sf actions,
+# they come from the loaded .bvh motion-capture library.
+scene cob width=800 height=600 fps=30
+
+camera main:
+    follow hero
+    zoom 1.0
+
+character hero:
+    rig bipedal
+    appearance shirt_color="#2E86DE" pants_color="#1B2A4A"
+    scale=2.5
+    position (400, 374)
+
+timeline:
+    scene act1:
+        0.0s  hero.idle
+        0.5s  hero.punch
+        2.0s  hero.idle
+        2.5s  hero.wave
+        5.0s  hero.idle

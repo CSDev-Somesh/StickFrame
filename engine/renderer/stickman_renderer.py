@@ -112,9 +112,10 @@ def draw_stickman(
     show_joints: bool = True,
     viewport_offset: tuple = (0, 0),
     zoom: float = 1.0,
+    facing: str = 'right',
 ) -> None:
     """Render a stickman with visible pivot nodes (Pivot Animator style).
-    
+
     Args:
         draw: Pillow ImageDraw instance
         skeleton: Computed skeleton with world positions
@@ -125,8 +126,12 @@ def draw_stickman(
         show_joints: Draw filled circles at each joint
         viewport_offset: (offset_x, offset_y) for camera transform
         zoom: Viewport zoom factor
+        facing: 'right' (default) or 'left' — 'left' mirrors the figure
+            horizontally about its origin (position.x) at draw time, so a
+            turned-around character reads correctly without re-solving FK.
     """
     ox, oy = position.x, position.y
+    left = (facing == 'left')
     bc = body_color or appearance.body_color or BONE_COLOR
     hc = head_color or appearance.head_color or HEAD_FILL
     s = appearance.scale
@@ -153,7 +158,15 @@ def draw_stickman(
     vx, vy = viewport_offset
 
     def vp(x: float, y: float) -> Tuple[float, float]:
-        """Apply viewport transform to world coordinates."""
+        """Apply viewport transform to world coordinates.
+
+        When facing left, world X is mirrored about the character's own
+        origin (ox) before the zoom/offset — this flips the entire figure
+        (bones, joint dots, torso fill, head) consistently, since every
+        draw path passes through this one transform.
+        """
+        if left:
+            x = 2 * ox - x
         return (x * zoom + vx, y * zoom + vy)
 
     # 1. Draw bone segments (limbs as lines) — pen strokes scale with the

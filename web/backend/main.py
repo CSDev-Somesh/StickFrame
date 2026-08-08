@@ -42,7 +42,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-RENDER_DIR = Path("/tmp/stickframe-renders")
+# Platform-safe render output dir (Windows has no /tmp)
+RENDER_DIR = Path(tempfile.gettempdir()) / "stickframe-renders"
 RENDER_DIR.mkdir(exist_ok=True)
 
 class RenderRequest(BaseModel):
@@ -70,9 +71,10 @@ def render(req: RenderRequest):
     job_dir = RENDER_DIR / job_id
     job_dir.mkdir(exist_ok=True)
 
-    # Write script to temp file
+    # Write script to temp file (UTF-8 — Windows default cp1252 mangles
+    # non-ASCII characters like em-dashes in comments)
     sf_path = job_dir / "scene.sf"
-    sf_path.write_text(req.script)
+    sf_path.write_text(req.script, encoding="utf-8")
 
     output_path = str(job_dir / "output.mp4")
 
@@ -114,7 +116,9 @@ def list_examples():
     examples_dir = Path(__file__).resolve().parent.parent.parent / "scripts"
     examples = {}
     for f in sorted(examples_dir.glob("*.sf")):
-        examples[f.stem] = f.read_text()
+        # Read as UTF-8: the .sf files are UTF-8 (em-dashes, accents), and
+        # guessing the locale on Windows would render mojibake in the UI.
+        examples[f.stem] = f.read_text(encoding="utf-8", errors="replace")
     return {"examples": examples}
 
 

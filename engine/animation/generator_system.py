@@ -1,3 +1,4 @@
+
 """GeneratorSystem — drives procedural animation generators in the engine loop
 
 For each entity with a ProceduralPlayer:
@@ -18,7 +19,14 @@ from engine.animation.generators import get_generator, GENERATORS
 # height the action started at. Engine.step applies it to position.y and
 # moves the physics ground to follow, so the body lowers/raises without
 # the ground clamp fighting it.
-HEIGHT_ACTIONS = frozenset({'sit', 'stand_up', 'kneel', 'lie_down', 'get_up'})
+HEIGHT_ACTIONS = frozenset({
+    'sit', 'stand_up', 'kneel', 'lie_down', 'get_up',
+    'sweep', 'slide',
+    'charge',            # crouch-down power-up
+    'collapse', 'get_back_up',   # fall to floor / rise
+    'fly', 'hover', 'land',      # flight altitude changes
+    'celebrate', 'crawl',        # hop up / down on hands+ knees
+})
 
 
 class GeneratorSystem:
@@ -41,11 +49,9 @@ class GeneratorSystem:
             # Advance time
             player.time += dt * player.speed
             
-            # Get generator
-            try:
-                gen_fn, has_pos, defaults = get_generator(player.current_action)
-            except KeyError:
-                continue
+            # Get generator — should never miss now that start_action validates,
+            # but if it does, fail loud so we don't silently freeze the figure.
+            gen_fn, has_pos, defaults = get_generator(player.current_action)
             
             # Merge default params with overrides
             merged = {**defaults, **player.params}
@@ -60,8 +66,12 @@ class GeneratorSystem:
                     pass
             elif not player.loop:
                 if player.time >= duration:
-                    player.playing = False
+                    # Non-looping action finished - transition to idle
                     sample_t = duration
+                    player.time = duration  # Hold at end frame
+                    # Schedule transition to idle on next frame
+                    if not hasattr(player, '_should_return_to_idle'):
+                        player._should_return_to_idle = True
             
             # Sample generator
             result = gen_fn(sample_t, merged)
@@ -101,7 +111,7 @@ class GeneratorSystem:
             
             # Position handling for generators that move the character
             if has_pos:
-                if player.current_action in ('walk', 'run'):
+                if player.current_action in ('walk', 'run', 'sprint'):
                     scale = merged.get('scale', 1.0)
                     stride = merged.get('stride', 55) * scale
                     speed = merged.get('speed', 1.2)
@@ -113,12 +123,25 @@ class GeneratorSystem:
                     new_bob = math.sin(player.time * speed * math.pi * 2) * bounce
                     player.position_offset_y = new_bob - player._prev_offset_y
                     player._prev_offset_y = new_bob
+
+            # Return to idle after non-looping action completes
+            if hasattr(player, '_should_return_to_idle') and player._should_return_to_idle:
+                player._should_return_to_idle = False
+                self.start_action(player, 'idle', params=merged)
     
-    def start_action(self, player: ProceduralPlayer, action_name: str, 
+    def start_action(self, player: ProceduralPlayer, action_name: str,
                      params: Dict[str, Any] = None) -> None:
-        """Start a procedural action on a player with blending."""
+        """Start a procedural action on a player with blending.
+
+        Raises KeyError if action_name is not registered — a typo in the
+        .sf timeline should fail loud, not silently freeze the character
+        in the last pose (the resume note flagged this exact bug).
+        """
         if action_name not in GENERATORS:
-            return
+            raise KeyError(
+                f"Unknown action: '{action_name}'. "
+                f"Available: {sorted(GENERATORS.keys())}"
+            )
         
         # Capture current pose for blending before switching
         if player._prev_frame_pose and player.current_action and player.current_action != action_name:
@@ -142,6 +165,10 @@ class GeneratorSystem:
         player._height_base = None
         player._height_offset = None
         
-        # Non-looping actions
+        # Loop behavior: only continuous/cyclic actions should loop
+        # All one-shot actions (punch, jump, kick, etc.) should play once
         _, _, defaults = get_generator(action_name)
-        player.loop = action_name in ('idle', 'walk', 'run')
+        player.loop = action_name in ('idle', 'walk', 'run', 'sneak', 'sprint',
+                                       'happy', 'sad', 'angry', 'scared',
+                                       'dance', 'celebrate', 'tremble',
+                                       'power_pose', 'hover', 'fly', 'crawl')

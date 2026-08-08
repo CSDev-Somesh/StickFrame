@@ -49,10 +49,12 @@ def main():
     print(f"  Final pos: ({e.entities[hero]['position'].x:.0f}, {e.entities[hero]['position'].y:.0f})")
     print(f"{'=' * 55}")
     
-    # Copy to home
+    # Keep a copy next to this script (no hardcoded Linux home path).
     import shutil
-    shutil.copy(output, "/home/kali/procedural_e2e.mp4")
-    print("\nAlso saved: /home/kali/procedural_e2e.mp4")
+    local_copy = os.path.join(os.path.dirname(os.path.abspath(__file__)), "procedural_e2e.mp4")
+    if os.path.abspath(output) != os.path.abspath(local_copy):
+        shutil.copy(output, local_copy)
+        print(f"\nAlso saved: {local_copy}")
 
 if __name__ == '__main__':
     main()

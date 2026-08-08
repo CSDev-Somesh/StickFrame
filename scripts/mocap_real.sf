@@ -1,0 +1,11 @@
+scene r width=800 height=450 fps=30
+camera main:
+    follow h
+    zoom 1.0
+character h:
+    rig bipedal
+    scale=2.2
+    position (400,300)
+timeline:
+    scene r:
+        0.0s  h.walk

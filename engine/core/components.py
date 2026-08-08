@@ -1,3 +1,4 @@
+
 """StickFrame Engine — Core ECS Components
 
 All component data structures for the Entity-Component-System.
@@ -151,6 +152,11 @@ class ProceduralPlayer:
     # chained actions (sit → stand_up) continue from the current height.
     _height_base: Optional[float] = None
     _height_offset: Optional[float] = None
+    # Velocity-driven movement (walk/run/sprint toward an x= target): when
+    # True, the generator's own X position offset is suppressed so the
+    # character doesn't double-move (velocity + generator stride). The Y
+    # bob is kept for life. Set/cleared by the timeline movement handler.
+    velocity_move: bool = False
 
 
 # ─── Physics Components ──────────────────────────────────────
@@ -205,6 +211,10 @@ class Camera:
     max_zoom: float = 3.0
     # Animated zoom
     target_zoom: Optional[float] = None  # None = use zoom directly
+    # Smooth pan targets — when set, the camera lerps toward them instead of
+    # following an entity. Cleared when a follow target is set or reset() runs.
+    pan_target_x: Optional[float] = None
+    pan_target_y: Optional[float] = None
     # Multi-camera
     active: bool = True
 
@@ -216,6 +226,12 @@ class DialogueState:
     active_text: str = ""
     bubble_style: str = "rounded"
     progress: float = 0.0
+
+
+@dataclass
+class Facing:
+    """Character facing direction — controls horizontal mirroring at render time."""
+    direction: str = 'right'  # 'left' or 'right'
 
 
 # ─── Scene Graph Component ───────────────────────────────────
@@ -258,7 +274,7 @@ __all__ = [
     'Keyframe', 'ActionClip', 'AnimationPlayer',
     'PhysicsBody', 'Collider',
     'Renderable', 'Camera',
-    'DialogueState',
+    'DialogueState', 'Facing',
     'SceneNode',
     'TimelineEvent', 'TimelineTrack',
     'AIComponent',

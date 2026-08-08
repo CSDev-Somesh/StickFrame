@@ -15,7 +15,7 @@ from PIL import Image
 from engine.core.components import (
     Position, Velocity, Appearance, Skeleton,
     AnimationPlayer, ActionClip, Renderable, Camera, PhysicsBody, Collider,
-    TimelineEvent, ProceduralPlayer, DialogueState,
+    TimelineEvent, ProceduralPlayer, DialogueState, Facing,
 )
 from engine.core.systems import Engine, AnimationSystem
 from engine.animation.skeleton import build_bipedal_skeleton, compute_forward_kinematics
@@ -34,6 +34,11 @@ class StickFrameEngine(Engine):
     def __init__(self, fps: int = 30, width: int = 1280, height: int = 720):
         super().__init__(fps=fps, width=width, height=height)
         self._export = ExportPipeline(fps=fps)
+        # Mocap action library: name -> ActionClip, loaded from .bvh files.
+        # These resolve before procedural generators (play_action checks the
+        # AnimationPlayer's clips first), so a .sf can use mocap action names
+        # as if they were built-ins.
+        self.mocap_clips: dict = {}
     
     def create_character(
         self,
@@ -95,7 +100,7 @@ class StickFrameEngine(Engine):
         phys = PhysicsBody(mass=1.0, is_static=False, ground_offset=ground_offset,
                            rest_ground_offset=ground_offset)
 
-        return self.create_entity({
+        eid = self.create_entity({
             'position': Position(x, y),
             'velocity': Velocity(0, 0),
             'skeleton': skeleton,
@@ -105,8 +110,13 @@ class StickFrameEngine(Engine):
             'renderable': Renderable(visible=True, z_order=0),
             'physics': phys,
             'dialogue': DialogueState(),
+            'facing': Facing(direction='right'),
             'name': name,
         })
+        # Attach any mocap library so this character can play mocap actions too
+        if self.mocap_clips:
+            anim_player.clips.update(self.mocap_clips)
+        return eid
     
     def play_action(self, entity_id: int, action_name: str) -> None:
         """Start playing an action on a character.
@@ -276,8 +286,15 @@ class StickFrameEngine(Engine):
         # Parse the script
         from compiler import Lexer, Parser, CodeGenerator
         
-        with open(script_path) as f:
-            text = f.read()
+        # Read the script leniently: prefer UTF-8 (what our web backend writes),
+        # but fall back to the Windows locale (cp1252) for hand-authored files
+        # saved with default encoders — strict UTF-8 would reject em-dashes
+        # and accents that are perfectly readable in comments.
+        raw = open(script_path, "rb").read()
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            text = raw.decode("cp1252", errors="replace")
         
         lexer = Lexer(text)
         tokens = lexer.tokenize()
@@ -285,7 +302,21 @@ class StickFrameEngine(Engine):
         script_ast = parser.parse()
         cg = CodeGenerator()
         scene_data = cg.generate(script_ast)
-        
+
+        # Execute a `script:` block (the creative programming layer) to
+        # generate timeline events, merged under their own track. Runs BEFORE
+        # validation so a bug in the user's script fails loudly here.
+        if scene_data.get('script'):
+            from compiler.interpreter import interpret
+            script_events = interpret(scene_data['script'])
+            if script_events:
+                scene_data.setdefault('timeline', {})['script'] = script_events
+
+        # Validate the parsed scene BEFORE building — a typo fires or entity
+        # name otherwise renders a silently wrong (or blank) video. Fail loud
+        # with a precise message instead.
+        self._validate_scene(scene_data)
+
         # Build scene from parsed data
         entity_map = {}  # name -> entity_id
         
@@ -311,7 +342,15 @@ class StickFrameEngine(Engine):
                 scale=scale,
             )
             entity_map[char['name']] = eid
-        
+
+        # Attach any mocap action library to every character so .sf timelines
+        # can reference mocap action names (resolved before procedural gens).
+        if self.mocap_clips:
+            for eid in entity_map.values():
+                anim = self.entities[eid].get('animation_player')
+                if anim:
+                    anim.clips.update(self.mocap_clips)
+
         # Load timeline
         timeline_data = scene_data.get('timeline', {})
 
@@ -398,6 +437,109 @@ class StickFrameEngine(Engine):
         # Render
         return self.render(output_path, duration=duration)
     
+    def load_mocap_library(self, folder: str, loops=None, view: str = "front",
+                           every_n: int = 1) -> dict:
+        """Load .bvh files from a folder into the engine's mocap action library.
+
+        Mocap action names can then be used directly in .sf timelines (e.g.
+        ``hero.spin_kick`` if a spin_kick.bvh was loaded). They resolve via
+        the keyframe AnimationPlayer, taking priority over procedural
+        generators.
+
+        Args:
+            folder: Directory containing .bvh files (one per action).
+            loops: Optional list of clip names that should loop.
+            view: 'front' or 'side' mocap projection.
+            every_n: Subsample factor (1 = keep every frame).
+
+        Returns:
+            The loaded {name: ActionClip} library.
+        """
+        from engine.mocap.importer import load_mocap_library as _load
+        self.mocap_clips.update(_load(folder, loop_names=loops, view=view, every_n=every_n))
+        # Attach to any existing characters so they can play the new actions
+        for eid, comps in self.entities.items():
+            anim = comps.get('animation_player')
+            if anim:
+                for name, clip in self.mocap_clips.items():
+                    anim.clips[name] = clip
+        return dict(self.mocap_clips)
+
+    def _validate_scene(self, scene_data: dict) -> None:
+        """Check a parsed scene for accuracy-killing mistakes before rendering.
+
+        Raises ValueError with a precise, actionable message on the first
+        problem found. Detects:
+          1. Timeline actions referencing an entity that doesn't exist
+          2. Unknown action names (not in the generator library)
+          3. Timeline events out of chronological order
+          4. Camera actions on a non-camera entity (and vice versa)
+
+        Without this, a typo silently produces a frozen character or a blank
+        video — the exact accuracy failures a movie script can't tolerate.
+        """
+        from engine.animation.generators import GENERATORS
+
+        # Actions that work on entities but aren't procedural generators
+        # (camera controls + dialogue). Validated against GENERATORS only
+        # when the target is a character.
+        NON_GENERATOR_ACTIONS = {
+            'zoom_to', 'follow', 'activate', 'pan_to', 'reset', 'shake',
+            'speak', 'set', 'turn',
+        }
+
+        # 1. Known entity names + which are cameras.
+        # 'bg' is a pseudo-entity for global scene controls (bg.set color=...)
+        # handled directly in the timeline handler — always valid.
+        entity_names = {c.get('name') for c in scene_data.get('characters', [])}
+        camera_names = {c.get('name') for c in scene_data.get('cameras', [])}
+        entity_names |= camera_names | {'bg'}
+
+        timeline = scene_data.get('timeline', {})
+        for scene_name, events in timeline.items():
+            prev_time = -1.0
+            for ev in events:
+                t = float(ev.get('time', 0))
+                action_str = str(ev.get('action', ''))
+                action_name = action_str.split('.', 1)[-1] if '.' in action_str else action_str
+                entity_name = action_str.split('.', 1)[0] if '.' in action_str else ''
+
+                # 2. Chronological order
+                if t < prev_time:
+                    raise ValueError(
+                        f"Timeline '{scene_name}': event at {t:.2f}s comes after "
+                        f"{prev_time:.2f}s — events must be in time order."
+                    )
+                prev_time = t
+
+                # 3. Entity must exist
+                if entity_name and entity_name not in entity_names:
+                    raise ValueError(
+                        f"Timeline '{scene_name}' @ {t:.2f}s: unknown entity "
+                        f"'{entity_name}'. Defined entities: {sorted(entity_names)}"
+                    )
+
+                # 4. Action must be known — camera actions on a camera entity
+                #    are handled by the timeline handler, not the generators.
+                if entity_name in camera_names:
+                    if action_name not in ('zoom_to', 'follow', 'activate',
+                                           'pan_to', 'reset', 'shake'):
+                        raise ValueError(
+                            f"Timeline '{scene_name}' @ {t:.2f}s: unknown camera "
+                            f"action '{action_name}' on '{entity_name}'. "
+                            "Camera actions: zoom_to, follow, activate, pan_to, reset, shake"
+                        )
+                elif action_name and action_name not in GENERATORS and \
+                        action_name not in NON_GENERATOR_ACTIONS and \
+                        action_name not in self.mocap_clips:
+                    raise ValueError(
+                        f"Timeline '{scene_name}' @ {t:.2f}s: unknown action "
+                        f"'{action_name}' on '{entity_name}'. "
+                        f"Available: {sorted(GENERATORS.keys())[:8]}, +mocap: "
+                        f"{sorted(self.mocap_clips)[:8]} ({len(GENERATORS)} gens, "
+                        f"{len(self.mocap_clips)} mocap)"
+                    )
+
     def _timeline_handler(self, time, action, params):
         """Handle timeline events: parse 'entity.action' and dispatch.
 
@@ -432,22 +574,27 @@ class StickFrameEngine(Engine):
                             if tcomps.get('name') == target_name:
                                 cam.target_entity = tid
                                 break
+                        # Following an entity cancels any pan target
+                        cam.pan_target_x = None
+                        cam.pan_target_y = None
                     elif action_name == 'activate':
                         for cid, ccomps in self.entities.items():
                             if 'camera' in ccomps:
                                 ccomps['camera'].active = False
                         cam.active = True
                     elif action_name == 'pan_to':
+                        # Smooth pan: set pan targets and let CameraSystem lerp
+                        # toward them (previous behavior snapped instantly).
                         cam.target_entity = None
-                        if 'x' in params:
-                            cam.current_x = float(params['x'])
-                        if 'y' in params:
-                            cam.current_y = float(params['y'])
+                        cam.pan_target_x = float(params['x']) if 'x' in params else None
+                        cam.pan_target_y = float(params['y']) if 'y' in params else None
                     elif action_name == 'reset':
                         cam.target_zoom = None
                         cam.zoom = 1.0
                         cam.shake_timer = 0
                         cam.shake_intensity = 0
+                        cam.pan_target_x = None
+                        cam.pan_target_y = None
                     break
 
                 # Character actions
@@ -459,8 +606,65 @@ class StickFrameEngine(Engine):
                         dlg.progress = float(params.get('duration', 2.5))  # countdown timer
                     break
 
+                # CRITICAL FIX: Stop any currently playing action before starting new one
+                # This ensures timeline events cleanly switch between actions instead of
+                # having multiple actions play simultaneously (walk + punch = broken)
+                proc_player = comps.get('procedural_player')
+                anim_player = comps.get('animation_player')
+                if proc_player and proc_player.playing:
+                    proc_player.playing = False
+                if anim_player and anim_player.playing:
+                    anim_player.playing = False
+
+                # Special handling for 'turn' — flip facing direction, then
+                # play the pivot animation. The renderer mirrors the skeleton
+                # so the character visually turns around.
+                if action_name == 'turn':
+                    facing = comps.get('facing')
+                    if facing:
+                        facing.direction = 'left' if facing.direction == 'right' else 'right'
+                    self.play_action(eid, action_name)
+                    break
+
                 self.play_action(eid, action_name)
 
+                vel = comps.get('velocity')
+
+                # Velocity-based movement for locomotion actions with an x= target.
+                # The character WALKS/RUNS to the target (not teleport), at a speed
+                # matching the action. Stops at the target via Engine.step()'s
+                # stop-at-target check.
+                if action_name in ('walk', 'run', 'sprint', 'sneak') and 'x' in params:
+                    pos = comps.get('position')
+                    if pos and vel:
+                        target_x = float(params['x'])
+                        distance = target_x - pos.x
+                        speeds = {
+                            'walk': 100,    # pixels per second
+                            'run': 200,
+                            'sprint': 300,
+                            'sneak': 50
+                        }
+                        speed = speeds.get(action_name, 100)
+                        vel.vx = speed if distance > 0 else -speed
+                        # Store target + signed speed so Engine.step() can
+                        # keep the velocity (friction decays vx every frame,
+                        # which would stall the character well short of the
+                        # target) and stop when reached.
+                        comps['_movement_target'] = target_x
+                        comps['_movement_speed'] = speed if distance > 0 else -speed
+                        # Suppress the generator's own X stride offset so the
+                        # character doesn't double-move (velocity + stride)
+                        proc = comps.get('procedural_player')
+                        if proc:
+                            proc.velocity_move = True
+                        # Auto-face the direction of travel
+                        facing = comps.get('facing')
+                        if facing:
+                            facing.direction = 'right' if distance > 0 else 'left'
+                    return
+
+                # Non-movement actions still honor instant position changes
                 if 'x' in params:
                     pos = comps.get('position')
                     if pos:
@@ -470,7 +674,6 @@ class StickFrameEngine(Engine):
                     if pos:
                         pos.y = float(params['y'])
                 if 'speed' in params:
-                    vel = comps.get('velocity')
                     if vel:
                         vel.vx = float(params['speed'])
                 break
